@@ -1,0 +1,39 @@
+menu "Simple WiFi Stack settings"
+
+choice LOG_LOCAL_LEVEL_WIFI_STACK
+    bool "WIFI_STACK log verbosity"
+    default LOG_LOCAL_LEVEL_WIFI_STACK_INFO
+    help
+        Specify how much output to compile into the binary.
+        You can set lower verbosity level at runtime using
+        esp_log_level_set function.
+
+        Note that this setting limits which log statements
+        are compiled into the program. So setting this to,
+        say, "Warning" would mean that changing log level
+        to "Debug" at runtime will not be possible.
+
+    config LOG_LOCAL_LEVEL_WIFI_STACK_NONE
+        bool "No output"
+    config LOG_LOCAL_LEVEL_WIFI_STACK_ERROR
+        bool "Error"
+    config LOG_LOCAL_LEVEL_WIFI_STACK_WARN
+        bool "Warning"
+    config LOG_LOCAL_LEVEL_WIFI_STACK_INFO
+        bool "Info"
+    config LOG_LOCAL_LEVEL_WIFI_STACK_DEBUG
+        bool "Debug"
+    config LOG_LOCAL_LEVEL_WIFI_STACK_VERBOSE
+        bool "Verbose"
+endchoice
+
+config LOG_LOCAL_LEVEL_WIFI_STACK
+    int
+    default 0 if LOG_LOCAL_LEVEL_WIFI_STACK_NONE
+    default 1 if LOG_LOCAL_LEVEL_WIFI_STACK_ERROR
+    default 2 if LOG_LOCAL_LEVEL_WIFI_STACK_WARN
+    default 3 if LOG_LOCAL_LEVEL_WIFI_STACK_INFO
+    default 4 if LOG_LOCAL_LEVEL_WIFI_STACK_DEBUG
+    default 5 if LOG_LOCAL_LEVEL_WIFI_STACK_VERBOSE
+
+endmenu
