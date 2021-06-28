@@ -2024,4 +2024,16 @@ tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info()
     }
 }
 
+tl::expected<wifi_stack::mac_t, std::string> get_base_mac_addr()
+{
+    wifi_stack::mac_t chipmac{};
+    if (const auto result = esp_base_mac_addr_get(std::begin(chipmac)); result == ESP_OK)
+        return chipmac;
+    else
+    {
+        ESP_LOGE(TAG, "esp_base_mac_addr_get() failed with %s", esp_err_to_name(result));
+        return tl::make_unexpected(std::string{"esp_base_mac_addr_get() failed with "} + esp_err_to_name(result));
+    }
+}
+
 } // namespace wifi_stack
