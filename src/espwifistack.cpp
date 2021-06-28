@@ -1037,15 +1037,19 @@ esp_err_t goe_wifi_tcpip_init(const config &config)
         return ESP_OK;
 
 #if CONFIG_IDF_TARGET_ESP32
+    if (const auto mac = get_default_mac_addr())
     {
-        uint8_t mac[8];
-        if (const auto result = esp_efuse_mac_get_default(mac); result == ESP_OK)
+        if (const auto result = set_base_mac_addr(*mac))
         {
-            if (const auto result = esp_base_mac_addr_set(mac); result != ESP_OK)
-                ESP_LOGE(TAG, "esp_base_mac_addr_set() failed with %s", esp_err_to_name(result));
         }
         else
-            ESP_LOGE(TAG, "esp_efuse_mac_get_default() failed with %s", esp_err_to_name(result));
+        {
+            ESP_LOGE(TAG, "set_base_mac_addr() failed: %.*s", result.error().size(), result.error().data());
+        }
+    }
+    else
+    {
+        ESP_LOGE(TAG, "get_default_mac_addr() failed: %.*s", mac.error().size(), mac.error().data());
     }
 #endif
 
@@ -2024,15 +2028,38 @@ tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info()
     }
 }
 
+tl::expected<wifi_stack::mac_t, std::string> get_default_mac_addr()
+{
+    wifi_stack::mac_t mac{};
+    if (const auto result = esp_efuse_mac_get_default(std::begin(mac)); result == ESP_OK)
+        return mac;
+    else
+    {
+        ESP_LOGE(TAG, "esp_efuse_mac_get_default() failed with %s", esp_err_to_name(result));
+        return tl::make_unexpected(std::string{"esp_efuse_mac_get_default() failed with "} + esp_err_to_name(result));
+    }
+}
+
 tl::expected<wifi_stack::mac_t, std::string> get_base_mac_addr()
 {
-    wifi_stack::mac_t chipmac{};
-    if (const auto result = esp_base_mac_addr_get(std::begin(chipmac)); result == ESP_OK)
-        return chipmac;
+    wifi_stack::mac_t mac{};
+    if (const auto result = esp_base_mac_addr_get(std::begin(mac)); result == ESP_OK)
+        return mac;
     else
     {
         ESP_LOGE(TAG, "esp_base_mac_addr_get() failed with %s", esp_err_to_name(result));
         return tl::make_unexpected(std::string{"esp_base_mac_addr_get() failed with "} + esp_err_to_name(result));
+    }
+}
+
+tl::expected<void, std::string> set_base_mac_addr(wifi_stack::mac_t mac_addr)
+{
+    if (const auto result = esp_base_mac_addr_set(std::cbegin(mac_addr)); result == ESP_OK)
+        return {};
+    else
+    {
+        ESP_LOGE(TAG, "esp_base_mac_addr_set() failed with %s", esp_err_to_name(result));
+        return tl::make_unexpected(std::string{"esp_base_mac_addr_set() failed with "} + esp_err_to_name(result));
     }
 }
 

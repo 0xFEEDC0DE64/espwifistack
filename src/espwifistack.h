@@ -56,6 +56,8 @@ void delete_scan_result();
 
 tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info();
 
+tl::expected<wifi_stack::mac_t, std::string> get_default_mac_addr();
 tl::expected<wifi_stack::mac_t, std::string> get_base_mac_addr();
+tl::expected<void, std::string> set_base_mac_addr(wifi_stack::mac_t mac_addr);
 
 } // namespace wifi_stack
