@@ -2063,4 +2063,16 @@ tl::expected<void, std::string> set_base_mac_addr(wifi_stack::mac_t mac_addr)
     }
 }
 
+tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_t tcpip_if)
+{
+    tcpip_adapter_ip_info_t ip;
+    if (const auto result = tcpip_adapter_get_ip_info(tcpip_if, &ip); result == ESP_OK)
+        return ip;
+    else
+    {
+        ESP_LOGE(TAG, "tcpip_adapter_get_ip_info() failed with %s", esp_err_to_name(result));
+        return tl::make_unexpected(std::string{"tcpip_adapter_get_ip_info() failed with "} + esp_err_to_name(result));
+    }
+}
+
 } // namespace wifi_stack
