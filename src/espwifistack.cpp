@@ -456,12 +456,12 @@ void goe_wifi_softap_config(wifi_config_t &wifi_config, const std::string &ssid=
     wifi_config.ap.password[0] = 0;
     if (!ssid.empty())
     {
-        std::snprintf((char*)wifi_config.ap.ssid, sizeof(wifi_config.ap.ssid), ssid.c_str());
+        std::snprintf((char*)wifi_config.ap.ssid, sizeof(wifi_config.ap.ssid), "%s", ssid.c_str());
         wifi_config.ap.ssid_len = ssid.size();
         if (!password.empty())
         {
             wifi_config.ap.authmode = authmode;
-            std::snprintf((char*)wifi_config.ap.password, sizeof(wifi_config.ap.password), password.c_str());
+            std::snprintf((char*)wifi_config.ap.password, sizeof(wifi_config.ap.password), "%s", password.c_str());
         }
     }
 }
@@ -1287,12 +1287,12 @@ void goe_wifi_sta_config(const config &config, wifi_config_t &wifi_config, const
 
     if (!ssid.empty())
     {
-        std::snprintf((char*)wifi_config.sta.ssid, sizeof(wifi_config.sta.ssid), ssid.c_str());
+        std::snprintf((char*)wifi_config.sta.ssid, sizeof(wifi_config.sta.ssid), "%s", ssid.c_str());
 
         if (!password.empty())
         {
             wifi_config.sta.threshold.authmode = WIFI_AUTH_WEP;
-            std::snprintf((char*)wifi_config.sta.password, sizeof(wifi_config.sta.password), password.c_str());
+            std::snprintf((char*)wifi_config.sta.password, sizeof(wifi_config.sta.password), "%s", password.c_str());
         }
 
         if (bssid)
