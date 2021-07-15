@@ -15,7 +15,8 @@ namespace wifi_stack {
 bool goe_wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_t& rhs);
 bool goe_wifi_sta_config_equal(const wifi_sta_config_t& lhs, const wifi_sta_config_t& rhs);
 
-std::string toString(wifi_auth_mode_t encryptionType);
+std::string toString(wifi_auth_mode_t authMode);
+std::string toString(wifi_cipher_type_t cipherType);
 
 // A class to make it easier to handle and pass around mac addresses / bssids
 

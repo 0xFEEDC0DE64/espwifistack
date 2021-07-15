@@ -45,9 +45,9 @@ bool goe_wifi_sta_config_equal(const wifi_sta_config_t& lhs, const wifi_sta_conf
            bool(lhs.btm_enabled) == bool(rhs.btm_enabled);
 }
 
-std::string toString(wifi_auth_mode_t encryptionType)
+std::string toString(wifi_auth_mode_t authMode)
 {
-    switch (encryptionType)
+    switch (authMode)
     {
     case WIFI_AUTH_OPEN:            return "WIFI_AUTH_OPEN";
     case WIFI_AUTH_WEP:             return "WIFI_AUTH_WEP";
@@ -61,7 +61,24 @@ std::string toString(wifi_auth_mode_t encryptionType)
     case WIFI_AUTH_MAX:             return "WIFI_AUTH_MAX";
     }
 
-    return std::string{"Unknown wifi_auth_mode_t("} + std::to_string(int(encryptionType)) + ')';
+    return std::string{"Unknown wifi_auth_mode_t("} + std::to_string(int(authMode)) + ')';
+}
+
+std::string toString(wifi_cipher_type_t cipherType)
+{
+    switch (cipherType) {
+    case WIFI_CIPHER_TYPE_NONE:        return "WIFI_CIPHER_TYPE_NONE";
+    case WIFI_CIPHER_TYPE_WEP40:       return "WIFI_CIPHER_TYPE_WEP40";
+    case WIFI_CIPHER_TYPE_WEP104:      return "WIFI_CIPHER_TYPE_WEP104";
+    case WIFI_CIPHER_TYPE_TKIP:        return "WIFI_CIPHER_TYPE_TKIP";
+    case WIFI_CIPHER_TYPE_CCMP:        return "WIFI_CIPHER_TYPE_CCMP";
+    case WIFI_CIPHER_TYPE_TKIP_CCMP:   return "WIFI_CIPHER_TYPE_TKIP_CCMP";
+    case WIFI_CIPHER_TYPE_AES_CMAC128: return "WIFI_CIPHER_TYPE_AES_CMAC128";
+    case WIFI_CIPHER_TYPE_SMS4:        return "WIFI_CIPHER_TYPE_SMS4";
+    case WIFI_CIPHER_TYPE_UNKNOWN:     return "WIFI_CIPHER_TYPE_UNKNOWN";
+    }
+
+    return std::string{"Unknown wifi_cipher_type_t("} + std::to_string(int(cipherType)) + ')';
 }
 
 std::string toString(const mac_t &mac)
