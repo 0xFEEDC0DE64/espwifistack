@@ -520,7 +520,7 @@ esp_err_t goe_wifi_set_ap_config(const config &config, const std::string &ssid, 
 
 void set_sta_status(WiFiStaStatus status)
 {
-    ESP_LOGI(TAG, "set_sta_status() %s", toString(status).c_str());
+    ESP_LOGI(TAG, "%s", toString(status).c_str());
     _sta_status = status;
 }
 
@@ -733,14 +733,14 @@ esp_err_t goe_wifi_post_event(std::unique_ptr<const goe_wifi_event_t> event)
 {
     if (!event)
     {
-        ESP_LOGE(TAG, "goe_wifi_post_event() with invalid event");
+        ESP_LOGE(TAG, "invalid event");
         return ESP_FAIL;
     }
 
     const auto ptr = event.get();
     if (const auto result = goe_wifi_event_queue->send(&ptr, portMAX_DELAY); result != pdTRUE)
     {
-        ESP_LOGE(TAG, "goe_wifi_post_event() goe_wifi_event_queue->send() failed with %i", result);
+        ESP_LOGE(TAG, "goe_wifi_event_queue->send() failed with %i", result);
         return ESP_FAIL;
     }
 
@@ -751,7 +751,7 @@ esp_err_t goe_wifi_post_event(std::unique_ptr<const goe_wifi_event_t> event)
 
 void goe_wifi_event_cb(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
-    ESP_LOGI(TAG, "goe_wifi_event_cb() %s %i", event_base, event_id);
+    ESP_LOGI(TAG, "%s %i", event_base, event_id);
 
     auto goe_wifi_event = std::make_unique<goe_wifi_event_t>();
     goe_wifi_event->event_id = GoeWifiEventId::MAX;
@@ -1365,7 +1365,7 @@ esp_err_t goe_wifi_sta_begin(const config &config, const std::string &ssid, cons
     }
     else if (get_sta_status() == WiFiStaStatus::WL_CONNECTED)
     {
-        ESP_LOGW(TAG, "goe_wifi_sta_begin() when already connected?!");
+        ESP_LOGW(TAG, "when already connected?!");
         return ESP_OK;
     }
     else
@@ -1445,14 +1445,14 @@ esp_err_t goe_wifi_sta_begin(const config &config)
         set_sta_status(WiFiStaStatus::WL_CONNECTING);
     }
     else
-        ESP_LOGW(TAG, "goe_wifi_sta_begin() when already connected?!");
+        ESP_LOGW(TAG, "when already connected?!");
 
     return ESP_OK;
 }
 
 esp_err_t goe_wifi_sta_disconnect(const config &config, bool wifioff, bool eraseap)
 {
-    ESP_LOGI(TAG, "goe_wifi_sta_disconnect() wifioff=%s eraseap=%s", wifioff?"true":"false", eraseap?"true":"false");
+    ESP_LOGI(TAG, "wifioff=%s eraseap=%s", wifioff?"true":"false", eraseap?"true":"false");
 
     wifi_config_t conf;
     goe_wifi_sta_config(config, conf);
@@ -1519,7 +1519,7 @@ esp_err_t goe_wifi_begin_scan(const config &config, bool show_hidden = false, bo
 {
     if (goe_wifi_get_status_bits() & WIFI_SCANNING_BIT)
     {
-        ESP_LOGE(TAG, "goe_wifi_begin_scan() while scan was still running");
+        ESP_LOGE(TAG, "while scan was still running");
         return ESP_FAIL;
     }
 
@@ -1669,13 +1669,13 @@ void handleWifiEvents(const config &config, TickType_t xTicksToWait)
     if (const auto result = goe_wifi_event_queue->receive(&data, xTicksToWait); result != pdTRUE)
     {
         if (result != pdFALSE)
-            ESP_LOGE(TAG, "handleWifiEvents() goe_wifi_event_queue->receive() failed with %i", result);
+            ESP_LOGE(TAG, "goe_wifi_event_queue->receive() failed with %i", result);
         return;
     }
 
     if (!data)
     {
-        ESP_LOGE(TAG, "handleWifiEvents() received nullptr event");
+        ESP_LOGE(TAG, "received nullptr event");
         return;
     }
 
@@ -1686,7 +1686,7 @@ void handleWifiEvents(const config &config, TickType_t xTicksToWait)
 
 void init(const config &config)
 {
-    ESP_LOGI(TAG, "init() called");
+    ESP_LOGI(TAG, "called");
 
     if (const auto result = goe_wifi_set_mode(WIFI_MODE_APSTA, config); result != ESP_OK)
     {
