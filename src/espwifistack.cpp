@@ -80,7 +80,6 @@ bool _long_range = false;
 wifi_ps_type_t _sleepEnabled = WIFI_PS_MIN_MODEM;
 
 // sta
-bool _useStaticIp = false;
 std::atomic<WiFiStaStatus> _sta_status{WiFiStaStatus::WL_NO_SHIELD};
 std::optional<espchrono::millis_clock::time_point> _wifiConnectFailFlag;
 uint8_t _wifiConnectFailCounter{};
@@ -227,7 +226,7 @@ int goe_wifi_wait_status_bits(int bits, espcpputils::ticks timeout)
         timeout.count()) & bits; // Wait a maximum of 100ms for either bit to be set.
 }
 
-esp_err_t goe_wifi_set_esp_interface_ip(esp_interface_t interface, ip_address_t local_ip=ip_address_t(), ip_address_t gateway=ip_address_t(), ip_address_t subnet=ip_address_t())
+esp_err_t goe_wifi_set_esp_interface_ip(esp_interface_t interface, ip_address_t local_ip, ip_address_t gateway, ip_address_t subnet)
 {
     esp_netif_t *esp_netif = esp_netifs[interface];
     esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
@@ -239,7 +238,7 @@ esp_err_t goe_wifi_set_esp_interface_ip(esp_interface_t interface, ip_address_t 
 
     if (true)
     {
-        ESP_LOGV(TAG, "Configuring %s static IP: " IPSTR ", MASK: " IPSTR ", GW: " IPSTR,
+        ESP_LOGI(TAG, "Configuring %s static IP: " IPSTR ", MASK: " IPSTR ", GW: " IPSTR,
                              interface == ESP_IF_WIFI_STA ? "Station" :
                              interface == ESP_IF_WIFI_AP ? "SoftAP" : "Ethernet",
                              IP2STR(&info.ip), IP2STR(&info.netmask), IP2STR(&info.gw));
@@ -264,6 +263,7 @@ esp_err_t goe_wifi_set_esp_interface_ip(esp_interface_t interface, ip_address_t 
         }
         if (info.ip.addr == 0)
         {
+            ESP_LOGI(TAG, "starting dhcpc");
             if (const auto result = esp_netif_dhcpc_start(esp_netif); result != ESP_OK)
             {
                 ESP_LOGE(TAG, "esp_netif_dhcpc_start() failed with %s", esp_err_to_name(result));
@@ -335,7 +335,7 @@ esp_err_t goe_wifi_set_esp_interface_ip(esp_interface_t interface, ip_address_t 
     return ESP_OK;
 }
 
-esp_err_t goe_wifi_set_esp_interface_dns(esp_interface_t interface, ip_address_t main_dns=ip_address_t(), ip_address_t backup_dns=ip_address_t(), ip_address_t fallback_dns=ip_address_t())
+esp_err_t goe_wifi_set_esp_interface_dns(esp_interface_t interface, ip_address_t main_dns, ip_address_t backup_dns, ip_address_t fallback_dns)
 {
     esp_netif_t *esp_netif = esp_netifs[interface];
     esp_netif_dns_info_t dns;
@@ -415,31 +415,6 @@ esp_err_t goe_wifi_enable_ap(bool enable, const config &config)
     if (result != ESP_OK)
         ESP_LOGE(TAG, "goe_wifi_set_mode() failed with %s", esp_err_to_name(result));
     return result;
-}
-
-esp_err_t goe_wifi_set_sta_ip(const config &config, ip_address_t local_ip, ip_address_t gateway, ip_address_t subnet, ip_address_t dns1 = {}, ip_address_t dns2 = {})
-{
-    if (const auto result = goe_wifi_enable_sta(true, config); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "goe_wifi_enable_sta() failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    if (const auto result = goe_wifi_set_esp_interface_ip(ESP_IF_WIFI_STA, local_ip, gateway, subnet); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "goe_wifi_set_esp_interface_ip() for STA failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    if (const auto result = goe_wifi_set_esp_interface_dns(ESP_IF_WIFI_STA, dns1, dns2); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "goe_wifi_set_esp_interface_dns() for STA failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    _useStaticIp = true;
-
-    return ESP_OK;
 }
 
 void goe_wifi_softap_config(wifi_config_t &wifi_config, const std::string &ssid={}, const std::string &password={},
@@ -1303,6 +1278,8 @@ void goe_wifi_sta_config(const config &config, wifi_config_t &wifi_config, const
     }
 }
 
+esp_err_t applyStaConfig(const config &config);
+
 esp_err_t goe_wifi_sta_begin(const config &config, const std::string &ssid, const std::string &passphrase, int32_t channel,
                                  std::optional<mac_t> bssid, bool connect)
 {
@@ -1377,13 +1354,10 @@ esp_err_t goe_wifi_sta_begin(const config &config, const std::string &ssid, cons
         }
     }
 
-    if (!_useStaticIp)
+    if (const auto result = applyStaConfig(config); result != ESP_OK)
     {
-        if (const auto result = goe_wifi_set_esp_interface_ip(ESP_IF_WIFI_STA); result != ESP_OK)
-        {
-            ESP_LOGE(TAG, "goe_wifi_set_esp_interface_ip() for STA failed with %s", esp_err_to_name(result));
-            return result;
-        }
+        ESP_LOGE(TAG, "applyStaConfig() failed with %s", esp_err_to_name(result));
+        return result;
     }
 
     if (connect)
@@ -1423,13 +1397,10 @@ esp_err_t goe_wifi_sta_begin(const config &config)
         return result;
     }
 
-    if (!_useStaticIp)
+    if (const auto result = applyStaConfig(config); result != ESP_OK)
     {
-        if (const auto result = goe_wifi_set_esp_interface_ip(ESP_IF_WIFI_STA); result != ESP_OK)
-        {
-            ESP_LOGE(TAG, "goe_wifi_set_esp_interface_ip() for STA failed with %s", esp_err_to_name(result));
-            return result;
-        }
+        ESP_LOGE(TAG, "applyStaConfig() failed with %s", esp_err_to_name(result));
+        return result;
     }
 
     if (get_sta_status() != WiFiStaStatus::WL_CONNECTED)
@@ -1493,13 +1464,23 @@ esp_err_t applyStaConfig(const config &config)
 {
     lastStaIpSetting = config.sta_ip;
 
-    esp_err_t result =
-        config.sta_ip.dhcpEnabled ?
-        goe_wifi_set_sta_ip(config, {}, {}, {}) :
-        goe_wifi_set_sta_ip(config, config.sta_ip.staticIp, config.sta_ip.staticGateway, config.sta_ip.staticSubnet, config.sta_ip.staticDns1, config.sta_ip.staticDns2);
-    if (result != ESP_OK)
-        ESP_LOGE(TAG, "goe_wifi_set_sta_ip() failed with %s", esp_err_to_name(result));
-    return result;
+    if (const auto result = config.sta_ip.staticIpEnabled ?
+            goe_wifi_set_esp_interface_ip(ESP_IF_WIFI_STA, config.sta_ip.staticIp, config.sta_ip.staticGateway, config.sta_ip.staticSubnet) :
+            goe_wifi_set_esp_interface_ip(ESP_IF_WIFI_STA, {}, {}, {}); result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "goe_wifi_set_esp_interface_ip() for STA failed with %s", esp_err_to_name(result));
+        return result;
+    }
+
+    if (const auto result = config.sta_ip.staticIpEnabled ?
+            goe_wifi_set_esp_interface_dns(ESP_IF_WIFI_STA, config.sta_ip.staticDns1, config.sta_ip.staticDns2, {}) :
+            goe_wifi_set_esp_interface_dns(ESP_IF_WIFI_STA, {}, {}, {}); result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "goe_wifi_set_esp_interface_dns() for STA failed with %s", esp_err_to_name(result));
+        return result;
+    }
+
+    return ESP_OK;
 }
 
 std::string calculateWifisChecksum(const config &config)

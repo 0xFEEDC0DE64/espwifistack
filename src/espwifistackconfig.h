@@ -59,7 +59,7 @@ struct ap_config : public wifi_entry
 
 struct ip_setting
 {
-    bool dhcpEnabled;
+    bool staticIpEnabled;
     ip_address_t staticIp;
     ip_address_t staticGateway;
     ip_address_t staticSubnet;
@@ -68,7 +68,7 @@ struct ip_setting
 
     friend bool operator==(const ip_setting &left, const ip_setting &right)
     {
-        return left.dhcpEnabled == right.dhcpEnabled &&
+        return left.staticIpEnabled == right.staticIpEnabled &&
                left.staticIp == right.staticIp &&
                left.staticGateway == right.staticGateway &&
                left.staticSubnet == right.staticSubnet &&
