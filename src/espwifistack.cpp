@@ -41,6 +41,9 @@ std::optional<WiFiStaStatus> lastStatus;
 
 WiFiState _wifiState;
 
+std::optional<espchrono::millis_clock::time_point> _lastStaSwitchedFromConnected;
+std::optional<espchrono::millis_clock::time_point> _lastStaSwitchedToConnected;
+
 std::optional<espchrono::millis_clock::time_point> lastScanStarted;
 espchrono::millis_clock::time_point _lastConnect;
 
@@ -105,6 +108,8 @@ std::vector<ConnectPlanItem> connectPlan;
 
 const WiFiState &wifiStateMachineState{_wifiState};
 cpputils::Signal<> scanResultChanged{};
+const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedFromConnected{_lastStaSwitchedFromConnected};
+const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedToConnected{_lastStaSwitchedToConnected};
 
 namespace {
 
@@ -495,8 +500,14 @@ esp_err_t goe_wifi_set_ap_config(const config &config, const std::string &ssid, 
 
 void set_sta_status(WiFiStaStatus status)
 {
-    ESP_LOGI(TAG, "%s", toString(status).c_str());
-    _sta_status = status;
+    WiFiStaStatus oldStatus = _sta_status.exchange(status);
+
+    ESP_LOGI(TAG, "%s (from %s)", toString(status).c_str(), toString(oldStatus).c_str());
+
+    if (oldStatus == WiFiStaStatus::WL_CONNECTED && status != WiFiStaStatus::WL_CONNECTED)
+        _lastStaSwitchedFromConnected = espchrono::millis_clock::now();
+    else if (oldStatus != WiFiStaStatus::WL_CONNECTED && status == WiFiStaStatus::WL_CONNECTED)
+        _lastStaSwitchedToConnected = espchrono::millis_clock::now();
 }
 
 void goe_wifi_scan_done()

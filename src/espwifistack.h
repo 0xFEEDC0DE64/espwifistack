@@ -3,6 +3,7 @@
 // system includes
 #include <string>
 #include <vector>
+#include <optional>
 
 // esp-idf includes
 #include <esp_wifi.h>
@@ -31,6 +32,9 @@ extern esp_netif_t* esp_netifs[ESP_IF_MAX];
 extern const WiFiState &wifiStateMachineState;
 
 extern cpputils::Signal<> scanResultChanged;
+
+extern const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedFromConnected;
+extern const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedToConnected;
 
 //! Call once at startup
 void init(const config &config);
