@@ -1628,8 +1628,8 @@ bool buildConnectPlan(const config &config, const scan_result &scanResult)
                  toString(entry.bssid).c_str()
         );
         _lastConnect = espchrono::millis_clock::now();
-        if (const auto result = applyStaConfig(config); result != ESP_OK)
-            ESP_LOGE(TAG, "applyStaConfig() failed with %s", esp_err_to_name(result));
+        //if (const auto result = applyStaConfig(config); result != ESP_OK)
+        //    ESP_LOGE(TAG, "applyStaConfig() failed with %s", esp_err_to_name(result));
         _wifiConnectFailCounter = 0;
         if (const auto result = goe_wifi_sta_begin(config, entry.ssid, entry.key, entry.channel, entry.bssid); result != ESP_OK)
             ESP_LOGE(TAG, "goe_wifi_sta_begin() failed with %s", esp_err_to_name(result));
