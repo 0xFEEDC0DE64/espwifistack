@@ -101,4 +101,6 @@ inline std::string toString(const esp_ip4_addr_t &val)
 inline std::string toString(const esp_ip6_addr_t &val)
 { return toString(*reinterpret_cast<const ip6_addr_t *>(&val)); }
 
+std::string toString(esp_interface_t interface);
+
 } // namespace wifi_stack

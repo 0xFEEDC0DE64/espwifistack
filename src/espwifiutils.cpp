@@ -3,6 +3,9 @@
 // esp-idf includes
 #include <esp_log.h>
 
+// local includes
+#include "futurecpp.h"
+
 namespace wifi_stack {
 namespace {
 constexpr const char * const TAG = "WIFI_STACK";
@@ -207,4 +210,18 @@ std::string toString(ip_addr_t val)
         return "unknown ipv" + std::to_string(val.type);
     }
 }
+
+std::string toString(esp_interface_t interface)
+{
+    switch (interface)
+    {
+    case ESP_IF_WIFI_STA: return "STA";
+    case ESP_IF_WIFI_AP: return "AP";
+    case ESP_IF_ETH: return "ETH";
+    default:
+        ESP_LOGW(TAG, "unknown esp_interface_t(%i)", std::to_underlying(interface));
+        return "unknown esp_interface_t(" + std::to_string(std::to_underlying(interface)) + ")";
+    }
+}
+
 } // namespace wifi_stack

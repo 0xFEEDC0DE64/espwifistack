@@ -4,6 +4,7 @@
 #include <string>
 #include <array>
 #include <cstdint>
+#include <optional>
 
 // esp-idf includes
 #include <esp_wifi_types.h>
@@ -29,54 +30,89 @@ struct wifi_entry
     }
 };
 
-struct ap_config : public wifi_entry
+struct static_ip_config
 {
-    int channel;
-    wifi_auth_mode_t authmode;
-    bool ssid_hidden;
-    int max_connection;
-    uint16_t beacon_interval;
     ip_address_t ip;
     ip_address_t subnet;
+    ip_address_t gateway;
 
-    friend bool operator==(const ap_config &left, const ap_config &right)
+    friend bool operator==(const static_ip_config &left, const static_ip_config &right)
     {
-        return *static_cast<const wifi_entry *>(&left) == *static_cast<const wifi_entry *>(&right) &&
-               left.channel == right.channel &&
-               left.authmode == right.authmode &&
-               left.ssid_hidden == right.ssid_hidden &&
-               left.max_connection == right.max_connection &&
-               left.beacon_interval == right.beacon_interval &&
-               left.ip == right.ip &&
-               left.subnet == right.subnet;
+        return left.ip == right.ip &&
+               left.subnet == right.subnet &&
+               left.gateway == right.gateway;
     }
 
-    friend bool operator!=(const ap_config &left, const ap_config &right)
+    friend bool operator!=(const static_ip_config &left, const static_ip_config &right)
     {
         return !(left == right);
     }
 };
 
-struct ip_setting
+struct static_dns_config
 {
-    bool staticIpEnabled;
-    ip_address_t staticIp;
-    ip_address_t staticGateway;
-    ip_address_t staticSubnet;
-    ip_address_t staticDns1;
-    ip_address_t staticDns2;
+    std::optional<ip_address_t> main;
+    std::optional<ip_address_t> backup;
+    std::optional<ip_address_t> fallback;
 
-    friend bool operator==(const ip_setting &left, const ip_setting &right)
+    friend bool operator==(const static_dns_config &left, const static_dns_config &right)
     {
-        return left.staticIpEnabled == right.staticIpEnabled &&
-               left.staticIp == right.staticIp &&
-               left.staticGateway == right.staticGateway &&
-               left.staticSubnet == right.staticSubnet &&
-               left.staticDns1 == right.staticDns1 &&
-               left.staticDns2 == right.staticDns2;
+        return  left.main == right.main &&
+                left.backup == right.backup &&
+                left.fallback == right.fallback;
     }
 
-    friend bool operator!=(const ip_setting &left, const ip_setting &right)
+    friend bool operator!=(const static_dns_config &left, const static_dns_config &right)
+    {
+        return !(left == right);
+    }
+};
+
+struct sta_config
+{
+    std::array<wifi_entry, 10> wifis;
+    std::optional<static_ip_config> static_ip;
+    static_dns_config static_dns;
+    int8_t min_rssi;
+
+    friend bool operator==(const sta_config &left, const sta_config &right)
+    {
+        return left.wifis == right.wifis &&
+               left.static_ip == right.static_ip &&
+               left.static_dns == right.static_dns &&
+               left.min_rssi == right.min_rssi;
+    }
+
+    friend bool operator!=(const sta_config &left, const sta_config &right)
+    {
+        return !(left == right);
+    }
+};
+
+struct ap_config
+{
+    std::string ssid;
+    std::string key;
+    static_ip_config static_ip;
+    int channel;
+    wifi_auth_mode_t authmode;
+    bool ssid_hidden;
+    int max_connection;
+    uint16_t beacon_interval;
+
+    friend bool operator==(const ap_config &left, const ap_config &right)
+    {
+        return left.ssid == right.ssid &&
+               left.key == right.key &&
+               left.static_ip == right.static_ip &&
+               left.channel == right.channel &&
+               left.authmode == right.authmode &&
+               left.ssid_hidden == right.ssid_hidden &&
+               left.max_connection == right.max_connection &&
+               left.beacon_interval == right.beacon_interval;
+    }
+
+    friend bool operator!=(const ap_config &left, const ap_config &right)
     {
         return !(left == right);
     }
@@ -86,9 +122,20 @@ struct config
 {
     bool wifiEnabled;
     std::string hostname;
-    std::array<wifi_entry, 10> wifis;
-    ip_setting sta_ip;
+    sta_config sta;
     ap_config ap;
-    int8_t min_rssi;
+
+    friend bool operator==(const config &left, const config &right)
+    {
+        return left.wifiEnabled == right.wifiEnabled &&
+               left.hostname == right.hostname &&
+               left.sta == right.sta &&
+               left.ap == right.ap;
+    }
+
+    friend bool operator!=(const config &left, const config &right)
+    {
+        return !(left == right);
+    }
 };
 } // namespace wifi_stack
