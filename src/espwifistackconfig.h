@@ -13,23 +13,6 @@
 #include "espwifiutils.h"
 
 namespace wifi_stack {
-struct wifi_entry
-{
-    std::string ssid;
-    std::string key;
-
-    friend bool operator==(const wifi_entry &left, const wifi_entry &right)
-    {
-        return left.ssid == right.ssid &&
-               left.key == right.key;
-    }
-
-    friend bool operator!=(const wifi_entry &left, const wifi_entry &right)
-    {
-        return !(left == right);
-    }
-};
-
 struct static_ip_config
 {
     ip_address_t ip;
@@ -68,18 +51,35 @@ struct static_dns_config
     }
 };
 
+struct wifi_entry
+{
+    std::string ssid;
+    std::string key;
+    std::optional<static_ip_config> static_ip;
+    static_dns_config static_dns;
+
+    friend bool operator==(const wifi_entry &left, const wifi_entry &right)
+    {
+        return left.ssid == right.ssid &&
+               left.key == right.key &&
+               left.static_ip == right.static_ip &&
+               left.static_dns == right.static_dns;
+    }
+
+    friend bool operator!=(const wifi_entry &left, const wifi_entry &right)
+    {
+        return !(left == right);
+    }
+};
+
 struct sta_config
 {
     std::array<wifi_entry, 10> wifis;
-    std::optional<static_ip_config> static_ip;
-    static_dns_config static_dns;
     int8_t min_rssi;
 
     friend bool operator==(const sta_config &left, const sta_config &right)
     {
         return left.wifis == right.wifis &&
-               left.static_ip == right.static_ip &&
-               left.static_dns == right.static_dns &&
                left.min_rssi == right.min_rssi;
     }
 

@@ -3,6 +3,9 @@
 // esp-idf includes
 #include <esp_log.h>
 
+// 3rdparty lib includes
+#include <fmt/core.h>
+
 // local includes
 #include "futurecpp.h"
 
@@ -52,50 +55,79 @@ std::string toString(wifi_auth_mode_t authMode)
 {
     switch (authMode)
     {
-    case WIFI_AUTH_OPEN:            return "WIFI_AUTH_OPEN";
-    case WIFI_AUTH_WEP:             return "WIFI_AUTH_WEP";
-    case WIFI_AUTH_WPA_PSK:         return "WIFI_AUTH_WPA_PSK";
-    case WIFI_AUTH_WPA2_PSK:        return "WIFI_AUTH_WPA2_PSK";
-    case WIFI_AUTH_WPA_WPA2_PSK:    return "WIFI_AUTH_WPA_WPA2_PSK";
-    case WIFI_AUTH_WPA2_ENTERPRISE: return "WIFI_AUTH_WPA2_ENTERPRISE";
-    case WIFI_AUTH_WPA3_PSK:        return "WIFI_AUTH_WPA3_PSK";
-    case WIFI_AUTH_WPA2_WPA3_PSK:   return "WIFI_AUTH_WPA2_WPA3_PSK";
-    case WIFI_AUTH_WAPI_PSK:        return "WIFI_AUTH_WAPI_PSK";
-    case WIFI_AUTH_MAX:             return "WIFI_AUTH_MAX";
+    case WIFI_AUTH_OPEN:            return "OPEN";
+    case WIFI_AUTH_WEP:             return "WEP";
+    case WIFI_AUTH_WPA_PSK:         return "WPA_PSK";
+    case WIFI_AUTH_WPA2_PSK:        return "WPA2_PSK";
+    case WIFI_AUTH_WPA_WPA2_PSK:    return "WPA_WPA2_PSK";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "WPA2_ENTERPRISE";
+    case WIFI_AUTH_WPA3_PSK:        return "WPA3_PSK";
+    case WIFI_AUTH_WPA2_WPA3_PSK:   return "WPA2_WPA3_PSK";
+    case WIFI_AUTH_WAPI_PSK:        return "WAPI_PSK";
+    case WIFI_AUTH_MAX:             return "MAX";
+    default:
+        ESP_LOGW(TAG, "Unknown wifi_auth_mode_t(%i)", std::to_underlying(authMode));
+        return fmt::format("Unknown wifi_auth_mode_t({})", std::to_underlying(authMode));
     }
-
-    return std::string{"Unknown wifi_auth_mode_t("} + std::to_string(int(authMode)) + ')';
 }
 
 std::string toString(wifi_cipher_type_t cipherType)
 {
-    switch (cipherType) {
-    case WIFI_CIPHER_TYPE_NONE:        return "WIFI_CIPHER_TYPE_NONE";
-    case WIFI_CIPHER_TYPE_WEP40:       return "WIFI_CIPHER_TYPE_WEP40";
-    case WIFI_CIPHER_TYPE_WEP104:      return "WIFI_CIPHER_TYPE_WEP104";
-    case WIFI_CIPHER_TYPE_TKIP:        return "WIFI_CIPHER_TYPE_TKIP";
-    case WIFI_CIPHER_TYPE_CCMP:        return "WIFI_CIPHER_TYPE_CCMP";
-    case WIFI_CIPHER_TYPE_TKIP_CCMP:   return "WIFI_CIPHER_TYPE_TKIP_CCMP";
-    case WIFI_CIPHER_TYPE_AES_CMAC128: return "WIFI_CIPHER_TYPE_AES_CMAC128";
-    case WIFI_CIPHER_TYPE_SMS4:        return "WIFI_CIPHER_TYPE_SMS4";
-    case WIFI_CIPHER_TYPE_UNKNOWN:     return "WIFI_CIPHER_TYPE_UNKNOWN";
+    switch (cipherType)
+    {
+    case WIFI_CIPHER_TYPE_NONE:        return "NONE";
+    case WIFI_CIPHER_TYPE_WEP40:       return "WEP40";
+    case WIFI_CIPHER_TYPE_WEP104:      return "WEP104";
+    case WIFI_CIPHER_TYPE_TKIP:        return "TKIP";
+    case WIFI_CIPHER_TYPE_CCMP:        return "CCMP";
+    case WIFI_CIPHER_TYPE_TKIP_CCMP:   return "TKIP_CCMP";
+    case WIFI_CIPHER_TYPE_AES_CMAC128: return "AES_CMAC128";
+    case WIFI_CIPHER_TYPE_SMS4:        return "SMS4";
+    case WIFI_CIPHER_TYPE_UNKNOWN:     return "UNKNOWN";
+    default:
+        ESP_LOGW(TAG, "Unknown wifi_cipher_type_t(%i)", std::to_underlying(cipherType));
+        return fmt::format("Unknown wifi_cipher_type_t({})", std::to_underlying(cipherType));
     }
+}
 
-    return std::string{"Unknown wifi_cipher_type_t("} + std::to_string(int(cipherType)) + ')';
+std::string toString(esp_interface_t interface)
+{
+    switch (interface)
+    {
+    case ESP_IF_WIFI_STA: return "STA";
+    case ESP_IF_WIFI_AP:  return "AP";
+    case ESP_IF_ETH:      return "ETH";
+    default:
+        ESP_LOGW(TAG, "Unknown esp_interface_t(%i)", std::to_underlying(interface));
+        return fmt::format("Unknown esp_interface_t({})", std::to_underlying(interface));
+    }
+}
+
+std::string toString(esp_netif_dhcp_status_t status)
+{
+    switch (status)
+    {
+    case ESP_NETIF_DHCP_INIT:    return "INIT";
+    case ESP_NETIF_DHCP_STARTED: return "STARTED";
+    case ESP_NETIF_DHCP_STOPPED: return "STOPPED";
+    default:
+        ESP_LOGW(TAG, "Unknown esp_netif_dhcp_status_t(%i)", std::to_underlying(status));
+        return fmt::format("Unknown esp_netif_dhcp_status_t({})", std::to_underlying(status));
+    }
 }
 
 std::string toString(const mac_t &mac)
 {
-    char macStr[18]{0};
-    std::snprintf(macStr, 18, "%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX",
-                  mac.at(0), mac.at(1), mac.at(2), mac.at(3), mac.at(4), mac.at(5));
-    return std::string{macStr};
+    return fmt::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+                       mac.at(0), mac.at(1), mac.at(2), mac.at(3), mac.at(4), mac.at(5));
 }
 
-bool ip_address_t::fromString(std::string_view address)
+/*static*/ tl::expected<ip_address_t, std::string> ip_address_t::parseFromString(std::string_view address)
 {
     // TODO: add support for "a", "a.b", "a.b.c" formats
     // TODO: replace with scanf for better performance
+
+    ip_address_t result;
 
     uint16_t acc = 0; // Accumulator
     uint8_t dots = 0;
@@ -105,40 +137,32 @@ bool ip_address_t::fromString(std::string_view address)
         if (c >= '0' && c <= '9')
         {
             acc = acc * 10 + (c - '0');
-            if (acc > 255) {
-                // Value out of [0..255] range
-                return false;
-            }
+            if (acc > 255)
+                return tl::make_unexpected("Value out of [0..255] range");
         }
         else if (c == '.')
         {
-            if (dots == 3) {
-                // Too much dots (there must be 3 dots)
-                return false;
-            }
-            _bytes[dots++] = acc;
+            if (dots == 3)
+                return tl::make_unexpected("Too many dots (there must be 3 dots)");
+
+            result._bytes[dots++] = acc;
             acc = 0;
         }
         else
-        {
-            // Invalid char
-            return false;
-        }
+            return tl::make_unexpected("Invalid char");
     }
 
-    if (dots != 3) {
-        // Too few dots (there must be 3 dots)
-        return false;
-    }
-    _bytes[3] = acc;
-    return true;
+    if (dots != 3)
+        return tl::make_unexpected("Too few dots (there must be 3 dots)");
+
+    result._bytes[3] = acc;
+
+    return result;
 }
 
 std::string toString(const ip_address_t &address)
 {
-    char szRet[16];
-    sprintf(szRet,"%hhu.%hhu.%hhu.%hhu", address[0], address[1], address[2], address[3]);
-    return std::string{szRet};
+    return fmt::format("{}.{}.{}.{}", address[0], address[1], address[2], address[3]);
 }
 
 ip_address_t goe_wifi_calculate_network_id(ip_address_t ip, ip_address_t subnet)
@@ -206,21 +230,8 @@ std::string toString(ip_addr_t val)
     case IPADDR_TYPE_V4: return toString(val.u_addr.ip4);
     case IPADDR_TYPE_V6: return toString(val.u_addr.ip6);
     default:
-        ESP_LOGW(TAG, "unknown ipv%i", val.type);
-        return "unknown ipv" + std::to_string(val.type);
-    }
-}
-
-std::string toString(esp_interface_t interface)
-{
-    switch (interface)
-    {
-    case ESP_IF_WIFI_STA: return "STA";
-    case ESP_IF_WIFI_AP: return "AP";
-    case ESP_IF_ETH: return "ETH";
-    default:
-        ESP_LOGW(TAG, "unknown esp_interface_t(%i)", std::to_underlying(interface));
-        return "unknown esp_interface_t(" + std::to_string(std::to_underlying(interface)) + ")";
+        ESP_LOGW(TAG, "Unknown ipv%hhu", val.type);
+        return fmt::format("Unknown ipv{}", val.type);
     }
 }
 

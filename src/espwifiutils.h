@@ -9,7 +9,11 @@
 // esp-idf includes
 #include <esp_wifi_types.h>
 #include <esp_netif_ip_addr.h>
+#include <esp_netif_types.h>
 #include <lwip/ip_addr.h>
+
+// 3rdparty lib includes
+#include <tl/expected.hpp>
 
 namespace wifi_stack {
 bool goe_wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_t& rhs);
@@ -17,6 +21,8 @@ bool goe_wifi_sta_config_equal(const wifi_sta_config_t& lhs, const wifi_sta_conf
 
 std::string toString(wifi_auth_mode_t authMode);
 std::string toString(wifi_cipher_type_t cipherType);
+std::string toString(esp_interface_t interface);
+std::string toString(esp_netif_dhcp_status_t status);
 
 // A class to make it easier to handle and pass around mac addresses / bssids
 
@@ -62,7 +68,7 @@ public:
     constexpr explicit ip_address_t(esp_ip4_addr_t address) noexcept : _value{address.addr} {}
     constexpr ip_address_t(std::array<uint8_t, 4> bytes) noexcept : _bytes{bytes} {}
 
-    bool fromString(std::string_view address);
+    static tl::expected<ip_address_t, std::string> parseFromString(std::string_view address);
 
     // Access the raw byte array containing the address.  Because this returns a pointer
     // to the internal structure rather than a copy of the address this function should only
@@ -100,7 +106,5 @@ inline std::string toString(const esp_ip4_addr_t &val)
 { return toString(*reinterpret_cast<const ip4_addr_t *>(&val)); }
 inline std::string toString(const esp_ip6_addr_t &val)
 { return toString(*reinterpret_cast<const ip6_addr_t *>(&val)); }
-
-std::string toString(esp_interface_t interface);
 
 } // namespace wifi_stack

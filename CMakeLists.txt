@@ -16,6 +16,7 @@ set(dependencies
     espchrono
     espcpputils
     expected
+    fmt
 )
 
 idf_component_register(
