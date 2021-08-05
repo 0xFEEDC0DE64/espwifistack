@@ -8,7 +8,6 @@
 #include <string>
 #include <queue>
 #include <functional>
-#include <cstring>
 #include <atomic>
 
 // esp-idf includes
@@ -395,6 +394,16 @@ esp_err_t goe_wifi_enable_ap(bool enable, const config &config)
     return result;
 }
 
+template<size_t LENGTH>
+size_t copyStrToBuf(uint8_t (&buf)[LENGTH], std::string_view str)
+{
+    size_t cutLength = std::min(LENGTH, str.size());
+    std::copy(std::begin(str), std::begin(str) + cutLength, buf);
+    if (str.size() < LENGTH)
+        buf[str.size()] = '\0';
+    return cutLength;
+}
+
 wifi_config_t make_ap_config(const ap_config &ap_config)
 {
     wifi_config_t wifi_config;
@@ -408,13 +417,13 @@ wifi_config_t make_ap_config(const ap_config &ap_config)
     wifi_config.ap.password[0] = 0;
     if (!ap_config.ssid.empty())
     {
-        std::snprintf((char*)wifi_config.ap.ssid, sizeof(wifi_config.ap.ssid), "%s", ap_config.ssid.c_str());
-        wifi_config.ap.ssid_len = ap_config.ssid.size();
+        auto ssidCutLength = copyStrToBuf(wifi_config.ap.ssid, ap_config.ssid);
+        wifi_config.ap.ssid_len = ssidCutLength;
 
         if (!ap_config.key.empty())
         {
             wifi_config.ap.authmode = ap_config.authmode;
-            std::snprintf((char*)wifi_config.ap.password, sizeof(wifi_config.ap.password), "%s", ap_config.key.c_str());
+            copyStrToBuf(wifi_config.ap.password, ap_config.key);
         }
     }
     return wifi_config;
@@ -428,6 +437,12 @@ esp_err_t goe_wifi_set_ap_config(const config &config, const ap_config &ap_confi
         return ESP_FAIL;
     }
 
+    if (ap_config.ssid.size() > 32)
+    {
+        ESP_LOGE(TAG, "SSID too long! (size=%zd)", ap_config.ssid.size());
+        return ESP_FAIL;
+    }
+
     if (!ap_config.key.empty())
     {
         if (ap_config.key.size() < 8)
@@ -435,7 +450,7 @@ esp_err_t goe_wifi_set_ap_config(const config &config, const ap_config &ap_confi
             ESP_LOGE(TAG, "passphrase too short! (size=%zd)", ap_config.key.size());
             return ESP_FAIL;
         }
-        if (ap_config.key.size() > 63)
+        if (ap_config.key.size() > 64)
         {
             ESP_LOGE(TAG, "passphrase too long! (size=%zd)", ap_config.key.size());
             return ESP_FAIL;
@@ -1296,12 +1311,12 @@ wifi_config_t make_sta_config(std::string_view ssid, std::string_view password, 
 
     if (!ssid.empty())
     {
-        std::snprintf((char*)wifi_config.sta.ssid, sizeof(wifi_config.sta.ssid), "%s", ssid.data());
+        copyStrToBuf(wifi_config.sta.ssid, ssid);
 
         if (!password.empty())
         {
             wifi_config.sta.threshold.authmode = WIFI_AUTH_WEP;
-            std::snprintf((char*)wifi_config.sta.password, sizeof(wifi_config.sta.password), "%s", password.data());
+            copyStrToBuf(wifi_config.sta.password, password);
         }
 
         if (bssid)
@@ -1329,7 +1344,7 @@ esp_err_t goe_wifi_sta_begin(const config &config, const wifi_entry &sta_config,
         return ESP_FAIL;
     }
 
-    if (sta_config.ssid.size() > 31)
+    if (sta_config.ssid.size() > 32)
     {
         ESP_LOGE(TAG, "SSID too long! (size=%zd)", sta_config.ssid.size());
         return ESP_FAIL;
@@ -1343,7 +1358,7 @@ esp_err_t goe_wifi_sta_begin(const config &config, const wifi_entry &sta_config,
             return ESP_FAIL;
         }
 
-        if (sta_config.key.size() > 63)
+        if (sta_config.key.size() > 64)
         {
             ESP_LOGE(TAG, "key too long! (size=%zd)", sta_config.key.size());
             return ESP_FAIL;
