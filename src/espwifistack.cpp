@@ -1259,7 +1259,7 @@ esp_err_t goe_wifi_set_ap_ip(const config &config, const static_ip_config &ip)
             {
                 if (i < 20)
                 {
-                    vTaskDelay(std::chrono::ceil<espcpputils::ticks>(50ms).count());
+                    espcpputils::delay(50ms);
                     continue;
                 }
                 else
@@ -1720,7 +1720,7 @@ void init(const config &config)
         return;
     }
 
-    vTaskDelay(std::chrono::ceil<espcpputils::ticks>(100ms).count());
+    espcpputils::delay(100ms);
 
     if (const auto result = goe_wifi_enable_ap(true, config); result != ESP_OK)
     {
