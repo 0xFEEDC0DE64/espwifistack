@@ -20,20 +20,17 @@
 #endif
 
 #ifdef CONFIG_ETH_ENABLED
-#include <esp_eth.h>
-#include <esp_eth_phy.h>
-#include <esp_eth_mac.h>
-#include <esp_eth_com.h>
-#if CONFIG_IDF_TARGET_ESP32
-#include <soc/emac_ext_struct.h>
-#include <soc/rtc.h>
-//#include <soc/io_mux_reg.h>
-//#include <hal/gpio_hal.h>
-#endif
-#else
-#include <eth_phy/phy.h>
-#include <eth_phy/phy_tlk110.h>
-#include <eth_phy/phy_lan8720.h>
+    #include <esp_eth.h>
+    #include <esp_eth_phy.h>
+    #include <esp_eth_mac.h>
+    #include <esp_eth_com.h>
+    #include <soc/emac_ext_struct.h>
+    #include <soc/rtc.h>
+    //#include <soc/io_mux_reg.h>
+    //#include <hal/gpio_hal.h>
+    #include <eth_phy/phy.h>
+    #include <eth_phy/phy_tlk110.h>
+    #include <eth_phy/phy_lan8720.h>
 #endif
 
 #ifdef CONFIG_ETH_ENABLED
