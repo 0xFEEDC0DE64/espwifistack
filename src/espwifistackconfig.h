@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sdkconfig.h"
+
 // system includes
 #include <string>
 #include <array>
@@ -74,12 +76,14 @@ struct wifi_entry
 
 struct sta_config
 {
+    bool enabled;
     std::array<wifi_entry, 10> wifis;
     int8_t min_rssi;
 
     friend bool operator==(const sta_config &left, const sta_config &right)
     {
-        return left.wifis == right.wifis &&
+        return left.enabled == right.enabled &&
+               left.wifis == right.wifis &&
                left.min_rssi == right.min_rssi;
     }
 
@@ -118,19 +122,45 @@ struct ap_config
     }
 };
 
+#ifdef CONFIG_ETH_ENABLED
+struct eth_config
+{
+    bool enabled;
+    std::optional<static_ip_config> static_ip;
+    static_dns_config static_dns;
+
+    friend bool operator==(const eth_config &left, const eth_config &right)
+    {
+        return left.enabled == right.enabled &&
+               left.static_ip == right.static_ip &&
+               left.static_dns == right.static_dns;
+    }
+
+    friend bool operator!=(const eth_config &left, const eth_config &right)
+    {
+        return !(left == right);
+    }
+};
+#endif
+
 struct config
 {
-    bool wifiEnabled;
     std::string hostname;
     sta_config sta;
     ap_config ap;
+#ifdef CONFIG_ETH_ENABLED
+    eth_config eth;
+#endif
 
     friend bool operator==(const config &left, const config &right)
     {
-        return left.wifiEnabled == right.wifiEnabled &&
-               left.hostname == right.hostname &&
+        return left.hostname == right.hostname &&
                left.sta == right.sta &&
-               left.ap == right.ap;
+               left.ap == right.ap
+#ifdef CONFIG_ETH_ENABLED
+                && left.eth == right.eth
+#endif
+                ;
     }
 
     friend bool operator!=(const config &left, const config &right)

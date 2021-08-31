@@ -12,12 +12,18 @@ set(sources
 )
 
 set(dependencies
+    arduino-esp32
+    lwip
+    esp_netif
+
     cpputils
     espchrono
     espcpputils
     expected
     fmt
 )
+
+message(STATUS "${dependencies}")
 
 idf_component_register(
     INCLUDE_DIRS

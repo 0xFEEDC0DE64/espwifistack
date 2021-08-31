@@ -16,8 +16,8 @@
 #include <tl/expected.hpp>
 
 namespace wifi_stack {
-bool goe_wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_t& rhs);
-bool goe_wifi_sta_config_equal(const wifi_sta_config_t& lhs, const wifi_sta_config_t& rhs);
+bool wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_t& rhs);
+bool wifi_sta_config_equal(const wifi_sta_config_t& lhs, const wifi_sta_config_t& rhs);
 
 std::string toString(wifi_auth_mode_t authMode);
 std::string toString(wifi_cipher_type_t cipherType);
@@ -94,9 +94,9 @@ public:
 
 std::string toString(const ip_address_t &val);
 
-ip_address_t goe_wifi_calculate_network_id(ip_address_t ip, ip_address_t subnet);
-ip_address_t goe_wifi_calculate_broadcast(ip_address_t ip, ip_address_t subnet);
-uint8_t goe_wifi_calculate_subnet_cidr(ip_address_t subnetMask);
+ip_address_t wifi_calculate_network_id(ip_address_t ip, ip_address_t subnet);
+ip_address_t wifi_calculate_broadcast(ip_address_t ip, ip_address_t subnet);
+uint8_t wifi_calculate_subnet_cidr(ip_address_t subnetMask);
 
 std::string toString(ip4_addr_t val);
 std::string toString(const ip6_addr_t &val);

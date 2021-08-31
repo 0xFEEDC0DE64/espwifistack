@@ -14,7 +14,7 @@ namespace {
 constexpr const char * const TAG = "WIFI_STACK";
 } // namespace
 
-bool goe_wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_t& rhs)
+bool wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_t& rhs)
 {
     auto leftSsid = lhs.ssid_len ?
                 std::string_view{reinterpret_cast<const char*>(lhs.ssid), lhs.ssid_len} :
@@ -33,7 +33,7 @@ bool goe_wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_
            lhs.pairwise_cipher == rhs.pairwise_cipher;
 }
 
-bool goe_wifi_sta_config_equal(const wifi_sta_config_t& lhs, const wifi_sta_config_t& rhs)
+bool wifi_sta_config_equal(const wifi_sta_config_t& lhs, const wifi_sta_config_t& rhs)
 {
     return std::string_view{reinterpret_cast<const char*>(lhs.ssid)} == std::string_view{reinterpret_cast<const char*>(rhs.ssid)} &&
            std::string_view{reinterpret_cast<const char*>(lhs.password)} == std::string_view{reinterpret_cast<const char*>(rhs.password)} &&
@@ -165,7 +165,7 @@ std::string toString(const ip_address_t &address)
     return fmt::format("{}.{}.{}.{}", address[0], address[1], address[2], address[3]);
 }
 
-ip_address_t goe_wifi_calculate_network_id(ip_address_t ip, ip_address_t subnet)
+ip_address_t wifi_calculate_network_id(ip_address_t ip, ip_address_t subnet)
 {
     ip_address_t networkID;
 
@@ -175,7 +175,7 @@ ip_address_t goe_wifi_calculate_network_id(ip_address_t ip, ip_address_t subnet)
     return networkID;
 }
 
-ip_address_t goe_wifi_calculate_broadcast(ip_address_t ip, ip_address_t subnet)
+ip_address_t wifi_calculate_broadcast(ip_address_t ip, ip_address_t subnet)
 {
     ip_address_t broadcastIp;
 
@@ -185,7 +185,7 @@ ip_address_t goe_wifi_calculate_broadcast(ip_address_t ip, ip_address_t subnet)
     return broadcastIp;
 }
 
-uint8_t goe_wifi_calculate_subnet_cidr(ip_address_t subnetMask)
+uint8_t wifi_calculate_subnet_cidr(ip_address_t subnetMask)
 {
     uint8_t CIDR = 0;
 
