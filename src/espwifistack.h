@@ -68,5 +68,6 @@ tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_
 
 #ifdef CONFIG_ETH_ENABLED
 esp_eth_handle_t getEthHandle();
+bool get_eth_connected();
 #endif
 } // namespace wifi_stack

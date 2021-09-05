@@ -106,7 +106,7 @@ bool _long_range = false;
 wifi_ps_type_t _sleepEnabled = WIFI_PS_MIN_MODEM;
 
 // sta
-std::atomic<WiFiStaStatus> _sta_status{WiFiStaStatus::WL_NO_SHIELD};
+std::atomic<WiFiStaStatus> _sta_status{WiFiStaStatus::NO_SHIELD};
 std::optional<espchrono::millis_clock::time_point> _wifiConnectFailFlag;
 uint8_t _wifiConnectFailCounter{};
 
@@ -392,7 +392,7 @@ void update(const config &config)
     {
         if (_wifiState == WiFiState::None)
         {
-            if (get_sta_status() == WiFiStaStatus::WL_CONNECTED)
+            if (get_sta_status() == WiFiStaStatus::CONNECTED)
             {
                 ESP_LOGI(TAG, "Unexpected connected!");
 
@@ -458,7 +458,7 @@ void update(const config &config)
                     {
                         ESP_LOGI(TAG, "Finished scan with %zd results", scanResult->entries.size());
 
-                        if (get_sta_status() != WiFiStaStatus::WL_CONNECTED)
+                        if (get_sta_status() != WiFiStaStatus::CONNECTED)
                         {
                             ESP_LOGI(TAG, "Not connected after scan, building connect plan...");
                             buildConnectPlan(config, *scanResult);
@@ -482,7 +482,7 @@ void update(const config &config)
         if (_wifiState == WiFiState::Connecting)
         {
             const auto status = get_sta_status();
-            if (status == WiFiStaStatus::WL_CONNECTED)
+            if (status == WiFiStaStatus::CONNECTED)
             {
                 if (const auto interf = esp_netifs[ESP_IF_WIFI_STA])
                 {
@@ -553,7 +553,7 @@ void update(const config &config)
         if (_wifiState == WiFiState::Connected)
         {
             const auto status = get_sta_status();
-            if (status != WiFiStaStatus::WL_CONNECTED)
+            if (status != WiFiStaStatus::CONNECTED)
             {
                 ESP_LOGW(TAG, "lost connection: %s", toString(status).c_str());
                 if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
@@ -618,7 +618,7 @@ void update(const config &config)
                 setWifiState(WiFiState::None);
         }
 
-        if (!cpputils::is_in(get_sta_status(), WiFiStaStatus::WL_IDLE_STATUS, WiFiStaStatus::WL_DISCONNECTED) ||
+        if (!cpputils::is_in(get_sta_status(), WiFiStaStatus::IDLE_STATUS, WiFiStaStatus::DISCONNECTED) ||
             !cpputils::is_in(_wifiState, WiFiState::None, WiFiState::Scanning))
         {
             ESP_LOGI(TAG, "disconnecting, because wifi_enabled is false");
@@ -807,6 +807,11 @@ tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_
 esp_eth_handle_t getEthHandle()
 {
     return eth_handle;
+}
+
+bool get_eth_connected()
+{
+    return wifi_get_status_bits() & ETH_CONNECTED_BIT;
 }
 #endif
 
@@ -1102,9 +1107,9 @@ void set_sta_status(WiFiStaStatus status)
 
     ESP_LOGI(TAG, "%s (from %s)", toString(status).c_str(), toString(oldStatus).c_str());
 
-    if (oldStatus == WiFiStaStatus::WL_CONNECTED && status != WiFiStaStatus::WL_CONNECTED)
+    if (oldStatus == WiFiStaStatus::CONNECTED && status != WiFiStaStatus::CONNECTED)
         _lastStaSwitchedFromConnected = espchrono::millis_clock::now();
-    else if (oldStatus != WiFiStaStatus::WL_CONNECTED && status == WiFiStaStatus::WL_CONNECTED)
+    else if (oldStatus != WiFiStaStatus::CONNECTED && status == WiFiStaStatus::CONNECTED)
         _lastStaSwitchedToConnected = espchrono::millis_clock::now();
 }
 
@@ -1157,17 +1162,17 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
         wifi_scan_done();
         break;
     case WifiEventId::WIFI_STA_START:
-        set_sta_status(WiFiStaStatus::WL_IDLE_STATUS);
+        set_sta_status(WiFiStaStatus::IDLE_STATUS);
         wifi_set_status_bits(STA_STARTED_BIT);
         if (const auto result = esp_wifi_set_ps(_sleepEnabled); result != ESP_OK)
             ESP_LOGE(TAG, "esp_wifi_set_ps() failed with %s", esp_err_to_name(result));
         break;
     case WifiEventId::WIFI_STA_STOP:
-        set_sta_status(WiFiStaStatus::WL_NO_SHIELD);
+        set_sta_status(WiFiStaStatus::NO_SHIELD);
         wifi_clear_status_bits(STA_STARTED_BIT | STA_CONNECTED_BIT | STA_HAS_IP_BIT | STA_HAS_IP6_BIT);
         break;
     case WifiEventId::WIFI_STA_CONNECTED:
-        set_sta_status(WiFiStaStatus::WL_IDLE_STATUS);
+        set_sta_status(WiFiStaStatus::IDLE_STATUS);
         wifi_set_status_bits(STA_CONNECTED_BIT);
         //esp_netif_create_ip6_linklocal(esp_netifs[ESP_IF_WIFI_STA]);
         break;
@@ -1197,18 +1202,18 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
         default:
         {
             const auto sta_status = get_sta_status();
-            if (sta_status != WiFiStaStatus::WL_DISCONNECTING)
+            if (sta_status != WiFiStaStatus::DISCONNECTING)
             {
                 ESP_LOGW(TAG, "setting fail flag");
                 _wifiConnectFailFlag = espchrono::millis_clock::now();
             }
             switch (sta_status)
             {
-            case WiFiStaStatus::WL_CONNECTED: set_sta_status(WiFiStaStatus::WL_CONNECTION_LOST); break;
-            case WiFiStaStatus::WL_CONNECTING: set_sta_status(WiFiStaStatus::WL_CONNECT_FAILED); break;
-            case WiFiStaStatus::WL_DISCONNECTING:
+            case WiFiStaStatus::CONNECTED: set_sta_status(WiFiStaStatus::CONNECTION_LOST); break;
+            case WiFiStaStatus::CONNECTING: set_sta_status(WiFiStaStatus::CONNECT_FAILED); break;
+            case WiFiStaStatus::DISCONNECTING:
             default:
-                set_sta_status(WiFiStaStatus::WL_DISCONNECTED);
+                set_sta_status(WiFiStaStatus::DISCONNECTED);
                 break;
             }
             break;
@@ -1233,12 +1238,12 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
                  wifi_stack::toString(event.got_ip.ip_info.netmask).c_str(),
                  wifi_stack::toString(event.got_ip.ip_info.gw).c_str()
         );
-        set_sta_status(WiFiStaStatus::WL_CONNECTED);
+        set_sta_status(WiFiStaStatus::CONNECTED);
         wifi_set_status_bits(STA_HAS_IP_BIT | STA_CONNECTED_BIT);
         break;
     case WifiEventId::WIFI_STA_LOST_IP:
         ESP_LOGW(TAG, "WIFI_STA_LOST_IP");
-        set_sta_status(WiFiStaStatus::WL_IDLE_STATUS);
+        set_sta_status(WiFiStaStatus::IDLE_STATUS);
         wifi_clear_status_bits(STA_HAS_IP_BIT);
         break;
     case WifiEventId::WIFI_AP_START:
@@ -2134,7 +2139,7 @@ esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
             return result;
         }
     }
-    else if (get_sta_status() == WiFiStaStatus::WL_CONNECTED)
+    else if (get_sta_status() == WiFiStaStatus::CONNECTED)
     {
         ESP_LOGW(TAG, "when already connected?!");
         return ESP_OK;
@@ -2174,7 +2179,7 @@ esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
             return result;
         }
 
-        set_sta_status(WiFiStaStatus::WL_CONNECTING);
+        set_sta_status(WiFiStaStatus::CONNECTING);
     }
 
     return ESP_OK;
@@ -2219,7 +2224,7 @@ esp_err_t wifi_sta_restart(const config &config)
 
     //last_sta_static_dns = config.sta.static_dns;
 
-    if (get_sta_status() != WiFiStaStatus::WL_CONNECTED)
+    if (get_sta_status() != WiFiStaStatus::CONNECTED)
     {
         _wifiConnectFailFlag = std::nullopt;
 
@@ -2229,7 +2234,7 @@ esp_err_t wifi_sta_restart(const config &config)
             return result;
         }
 
-        set_sta_status(WiFiStaStatus::WL_CONNECTING);
+        set_sta_status(WiFiStaStatus::CONNECTING);
     }
     else
         ESP_LOGW(TAG, "when already connected?!");
@@ -2255,7 +2260,7 @@ esp_err_t wifi_sta_disconnect(const config &config, bool wifioff, bool eraseap)
         }
     }
 
-    set_sta_status(WiFiStaStatus::WL_DISCONNECTING);
+    set_sta_status(WiFiStaStatus::DISCONNECTING);
 
     if (const auto result = esp_wifi_disconnect(); result != ESP_OK)
     {

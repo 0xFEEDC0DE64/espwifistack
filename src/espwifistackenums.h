@@ -13,16 +13,16 @@ namespace wifi_stack {
 DECLARE_TYPESAFE_ENUM(WiFiState, : uint8_t, WiFiStateValues)
 
 #define WiFiStaStatusValues(x) \
-    x(WL_IDLE_STATUS) \
-    x(WL_NO_SSID_AVAIL) \
-    x(WL_SCAN_COMPLETED) \
-    x(WL_CONNECTED) \
-    x(WL_CONNECT_FAILED) \
-    x(WL_CONNECTION_LOST) \
-    x(WL_DISCONNECTED) \
-    x(WL_CONNECTING) \
-    x(WL_DISCONNECTING) \
-    x(WL_NO_SHIELD)
+    x(IDLE_STATUS) \
+    x(NO_SSID_AVAIL) \
+    x(SCAN_COMPLETED) \
+    x(CONNECTED) \
+    x(CONNECT_FAILED) \
+    x(CONNECTION_LOST) \
+    x(DISCONNECTED) \
+    x(CONNECTING) \
+    x(DISCONNECTING) \
+    x(NO_SHIELD)
 DECLARE_TYPESAFE_ENUM(WiFiStaStatus, : uint8_t, WiFiStaStatusValues)
 
 #define WiFiScanStatusValues(x) \
