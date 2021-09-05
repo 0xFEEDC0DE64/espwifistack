@@ -630,7 +630,7 @@ void update(const config &config)
         }
     }
 
-#ifdef XXXX
+#ifdef CONFIG_ETH_ENABLED
     if (eth_initialized)
     {
         bool justStarted{};
@@ -802,6 +802,13 @@ tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_
         return tl::make_unexpected(fmt::format("tcpip_adapter_get_ip_info() failed with {}", esp_err_to_name(result)));
     }
 }
+
+#ifdef CONFIG_ETH_ENABLED
+esp_eth_handle_t getEthHandle()
+{
+    return eth_handle;
+}
+#endif
 
 namespace {
 int wifi_set_status_bits(int bits)

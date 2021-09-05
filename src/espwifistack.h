@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sdkconfig.h"
+
 // system includes
 #include <string>
 #include <vector>
@@ -63,4 +65,8 @@ tl::expected<wifi_stack::mac_t, std::string> get_default_mac_addr();
 tl::expected<wifi_stack::mac_t, std::string> get_base_mac_addr();
 tl::expected<void, std::string> set_base_mac_addr(wifi_stack::mac_t mac_addr);
 tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_t tcpip_if);
+
+#ifdef CONFIG_ETH_ENABLED
+esp_eth_handle_t getEthHandle();
+#endif
 } // namespace wifi_stack
