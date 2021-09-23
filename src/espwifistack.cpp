@@ -509,8 +509,9 @@ void update(const config &config)
                 setWifiState(WiFiState::Connected);
                 lastStatus = std::nullopt;
             }
-            else if (_wifiConnectFailFlag && espchrono::ago(*_wifiConnectFailFlag) >= 5s)
+            else if (_wifiConnectFailFlag && espchrono::ago(*_wifiConnectFailFlag) < 5s)
             {
+                ESP_LOGI(TAG, "clearing connect fail flag");
                 _wifiConnectFailFlag = std::nullopt;
 
                 if (_wifiConnectFailCounter++ >= 10)
@@ -536,14 +537,24 @@ void update(const config &config)
             {
                 if (espchrono::ago(_lastConnect) >= 20s)
                 {
-                    ESP_LOGW(TAG, "connecting timed out, building new connect plan... %s", toString(status).c_str());
+                    if (_wifiConnectFailCounter++ >= 10)
+                    {
+                        ESP_LOGE(TAG, "connecting timed out, fail flag was set and fail count exceeded limit");
+                        if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
+                            ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
+                        setWifiState(WiFiState::None); // results in another scan
+                    }
+                    else
+                    {
+                        ESP_LOGW(TAG, "connecting timed out, building new connect plan... %s %hhu", toString(status).c_str(), _wifiConnectFailCounter);
 
-                    if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
-                        ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
+                        if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
+                            ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
 
-                    buildConnectPlan(config);
+                        buildConnectPlan(config);
 
-                    lastStatus = std::nullopt;
+                        lastStatus = std::nullopt;
+                    }
                 }
                 else if (!lastStatus || *lastStatus != status)
                 {
@@ -1231,14 +1242,14 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
         }
 
         wifi_clear_status_bits(STA_CONNECTED_BIT | STA_HAS_IP_BIT | STA_HAS_IP6_BIT);
-        if (((reason == WIFI_REASON_AUTH_EXPIRE) ||
-            (reason >= WIFI_REASON_BEACON_TIMEOUT && reason != WIFI_REASON_AUTH_FAIL)))
-        {
-            if (const auto result = wifi_sta_disconnect(config); result != ESP_OK)
-                ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
-            if (const auto result = wifi_sta_restart(config); result != ESP_OK)
-                ESP_LOGE(TAG, "wifi_sta_restart() failed with %s", esp_err_to_name(result));
-        }
+        //if (((reason == WIFI_REASON_AUTH_EXPIRE) ||
+        //    (reason >= WIFI_REASON_BEACON_TIMEOUT && reason != WIFI_REASON_AUTH_FAIL)))
+        //{
+        //    if (const auto result = wifi_sta_disconnect(config); result != ESP_OK)
+        //        ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
+        //    if (const auto result = wifi_sta_restart(config); result != ESP_OK)
+        //        ESP_LOGE(TAG, "wifi_sta_restart() failed with %s", esp_err_to_name(result));
+        //}
 
         break;
     }
@@ -2181,6 +2192,7 @@ esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
 
     if (connect)
     {
+        ESP_LOGI(TAG, "clearing connect fail flag");
         _wifiConnectFailFlag = std::nullopt;
 
         if (const auto result = esp_wifi_connect(); result != ESP_OK)
@@ -2236,6 +2248,7 @@ esp_err_t wifi_sta_restart(const config &config)
 
     if (get_sta_status() != WiFiStaStatus::CONNECTED)
     {
+        ESP_LOGI(TAG, "clearing connect fail flag");
         _wifiConnectFailFlag = std::nullopt;
 
         if (const auto result = esp_wifi_connect(); result != ESP_OK)
@@ -2423,6 +2436,7 @@ bool buildConnectPlan(const config &config, const scan_result &scanResult)
         );
         _lastConnect = espchrono::millis_clock::now();
 
+        ESP_LOGI(TAG, "resetting wifi connect fail counter");
         _wifiConnectFailCounter = 0;
         if (const auto result = wifi_sta_begin(config, entry.config, entry.channel, entry.bssid); result != ESP_OK)
             ESP_LOGE(TAG, "wifi_sta_begin() failed with %s", esp_err_to_name(result));
