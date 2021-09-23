@@ -1195,8 +1195,8 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
             ESP_LOGW(TAG, "%.*s", msg.size(), msg.data());
             _last_sta_error_message += msg;
             _last_sta_error_message += '\n';
-            if (_last_sta_error_message.size() > 1024)
-                _last_sta_error_message = _last_sta_error_message.substr(_last_sta_error_message.size() - 1024);
+            if (_last_sta_error_message.size() > 512)
+                _last_sta_error_message = _last_sta_error_message.substr(_last_sta_error_message.size() - 512, 512);
         }
 
         switch (reason)
