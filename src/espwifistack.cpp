@@ -109,6 +109,7 @@ wifi_ps_type_t _sleepEnabled = WIFI_PS_MIN_MODEM;
 std::atomic<WiFiStaStatus> _sta_status{WiFiStaStatus::NO_SHIELD};
 std::optional<espchrono::millis_clock::time_point> _wifiConnectFailFlag;
 uint8_t _wifiConnectFailCounter{};
+std::string _last_sta_error_message;
 
 // scan
 std::optional<espchrono::millis_clock::time_point> scanStarted;
@@ -132,6 +133,8 @@ const WiFiState &wifiStateMachineState{_wifiState};
 cpputils::Signal<> scanResultChanged{};
 const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedFromConnected{_lastStaSwitchedFromConnected};
 const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedToConnected{_lastStaSwitchedToConnected};
+const uint8_t &sta_error_count{_wifiConnectFailCounter};
+const std::string &last_sta_error_message{_last_sta_error_message};
 
 namespace {
 #define WifiEventIdValues(x) \
@@ -1184,10 +1187,17 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
         };
 
         const auto reason = event.wifi_sta_disconnected.reason;
-        ESP_LOGW(TAG, "WIFI_STA_DISCONNECTED ssid=\"%.*s\" bssid=%s reason=%u(%s)",
-                 ssid.size(), ssid.data(),
-                 toString(mac_t{event.wifi_sta_disconnected.bssid}).c_str(),
-                 reason, reason2str(reason));
+        {
+            auto msg = fmt::format("{} WIFI_STA_DISCONNECTED ssid=\"{}\" bssid={} reason={}({})",
+                                   espchrono::millis_clock::now().time_since_epoch().count(),
+                                   ssid, toString(mac_t{event.wifi_sta_disconnected.bssid}),
+                                   reason, reason2str(reason));
+            ESP_LOGW(TAG, "%.*s", msg.size(), msg.data());
+            _last_sta_error_message += msg;
+            _last_sta_error_message += '\n';
+            if (_last_sta_error_message.size() > 1024)
+                _last_sta_error_message = _last_sta_error_message.substr(_last_sta_error_message.size() - 1024);
+        }
 
         switch (reason)
         {
@@ -2081,7 +2091,7 @@ wifi_config_t make_sta_config(std::string_view ssid, std::string_view password, 
 }
 
 esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
-                             int32_t channel, std::optional<mac_t> bssid, bool connect)
+                         int32_t channel, std::optional<mac_t> bssid, bool connect)
 {
     if (const auto result = wifi_enable_sta(true, config); result != ESP_OK)
     {
