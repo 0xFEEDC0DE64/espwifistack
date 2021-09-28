@@ -98,7 +98,7 @@ struct ap_config
     std::string ssid;
     std::string key;
     static_ip_config static_ip;
-    int channel;
+    uint8_t channel;
     wifi_auth_mode_t authmode;
     bool ssid_hidden;
     int max_connection;
