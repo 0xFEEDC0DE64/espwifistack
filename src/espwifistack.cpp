@@ -2398,9 +2398,9 @@ bool buildConnectPlan(const config &config, const scan_result &scanResult)
         std::string_view scanSSID{(const char *)entry.ssid};
 
         // avoid duplicates
-        if (std::any_of(std::begin(connectPlan), std::end(connectPlan), [&scanSSID](const auto &entry){
-                        return cpputils::stringEqualsIgnoreCase(entry.config.ssid, scanSSID); }))
-            continue;
+        //if (std::any_of(std::begin(connectPlan), std::end(connectPlan), [&scanSSID](const auto &entry){
+        //                return cpputils::stringEqualsIgnoreCase(entry.config.ssid, scanSSID); }))
+        //    continue;
 
         const auto iter = std::find_if(std::begin(config.sta.wifis), std::end(config.sta.wifis),
                                        [&scanSSID](const auto &entry){ return cpputils::stringEqualsIgnoreCase(entry.ssid, scanSSID); });
