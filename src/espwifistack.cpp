@@ -117,15 +117,9 @@ espchrono::milliseconds32 scanTimeout = 10s;
 std::optional<scan_result> _scanResult;
 bool scanResultChangedFlag{};
 
-struct ConnectPlanItem
-{
-    wifi_entry config;
-    uint8_t channel;
-    wifi_auth_mode_t authmode;
-    int8_t rssi;
-    mac_t bssid;
-};
-std::vector<ConnectPlanItem> connectPlan;
+std::vector<mac_t> _pastConnectPlan;
+mac_t _currentConnectPlanEntry;
+std::vector<mac_t> _connectPlan;
 
 } // namespace
 
@@ -135,6 +129,9 @@ const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedFromCon
 const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedToConnected{_lastStaSwitchedToConnected};
 const uint8_t &sta_error_count{_wifiConnectFailCounter};
 const std::string &last_sta_error_message{_last_sta_error_message};
+const std::vector<mac_t> &pastConnectPlan{_pastConnectPlan};
+const mac_t &currentConnectPlanEntry{_currentConnectPlanEntry};
+const std::vector<mac_t> &connectPlan{_connectPlan};
 
 namespace {
 #define WifiEventIdValues(x) \
@@ -299,9 +296,10 @@ std::string calculateWifisChecksum(const config &config);
 esp_err_t wifi_begin_scan(const config &config, bool show_hidden = false, bool passive = false,
                           espchrono::milliseconds32 max_ms_per_chan = 300ms, uint8_t channel = 0);
 void setWifiState(WiFiState newWifiState);
-bool buildConnectPlan(const config &config, const scan_result &scanResult);
 bool buildConnectPlan(const config &config);
 bool buildConnectPlan(const config &config, const scan_result &scanResult);
+bool nextConnectPlanItem(const config &config);
+bool nextConnectPlanItem(const config &config, const scan_result &scanResult);
 void handleWifiEvents(const config &config, TickType_t xTicksToWait);
 #ifdef CONFIG_ETH_ENABLED
 esp_err_t eth_begin(const config &config, uint8_t phy_addr = ETH_PHY_ADDR, int power = ETH_PHY_POWER, int mdc = ETH_PHY_MDC,
@@ -2389,77 +2387,112 @@ bool buildConnectPlan(const config &config)
 
 bool buildConnectPlan(const config &config, const scan_result &scanResult)
 {
-    connectPlan.clear();
-
-    std::string foundSsids;
+    _pastConnectPlan.clear();
+    _currentConnectPlanEntry = {};
+    _connectPlan.clear();
 
     for (const auto &entry : scanResult.entries)
     {
         std::string_view scanSSID{(const char *)entry.ssid};
 
-        // avoid duplicates
-        //if (std::any_of(std::begin(connectPlan), std::end(connectPlan), [&scanSSID](const auto &entry){
-        //                return cpputils::stringEqualsIgnoreCase(entry.config.ssid, scanSSID); }))
-        //    continue;
-
         const auto iter = std::find_if(std::begin(config.sta.wifis), std::end(config.sta.wifis),
                                        [&scanSSID](const auto &entry){ return cpputils::stringEqualsIgnoreCase(entry.ssid, scanSSID); });
         if (iter != std::end(config.sta.wifis))
         {
-            connectPlan.emplace_back(ConnectPlanItem{
-                                         .config = *iter,
-                                         .channel = entry.primary,
-                                         .authmode = entry.authmode,
-                                         .rssi = entry.rssi,
-                                         .bssid = mac_t{entry.bssid}
-                                     });
+            _connectPlan.push_back(mac_t{entry.bssid});
         }
-
-        if (!foundSsids.empty())
-            foundSsids += ", ";
-        foundSsids += scanSSID;
     }
 
-    if (!connectPlan.empty())
+    return nextConnectPlanItem(config, scanResult);
+}
+
+bool nextConnectPlanItem(const config &config)
+{
+    const auto &scanResult = get_scan_result();
+    if (!scanResult)
     {
-        using wifi_stack::toString;
-
-        const auto entry = connectPlan.front();
-        connectPlan.erase(std::begin(connectPlan));
-        ESP_LOGI(TAG, "connecting to %s (auth=%s, key=%s, channel=%i, rssi=%i, bssid=%s)",
-                 entry.config.ssid.c_str(),
-                 toString(entry.authmode).c_str(),
-                 entry.config.key.c_str(),
-                 entry.channel,
-                 entry.rssi,
-                 toString(entry.bssid).c_str()
-        );
-        _lastConnect = espchrono::millis_clock::now();
-
-        ESP_LOGI(TAG, "resetting wifi connect fail counter");
-        _wifiConnectFailCounter = 0;
-        if (const auto result = wifi_sta_begin(config, entry.config, entry.channel, entry.bssid); result != ESP_OK)
-            ESP_LOGE(TAG, "wifi_sta_begin() failed with %s", esp_err_to_name(result));
-        setWifiState(WiFiState::Connecting);
-
-        return true;
+        ESP_LOGE(TAG, "no scan result available!");
+        return false;
     }
-    else
+
+    return nextConnectPlanItem(config, *scanResult);
+}
+
+bool nextConnectPlanItem(const config &config, const scan_result &scanResult)
+{
+    if (_connectPlan.empty())
     {
-        ESP_LOGW(TAG, "no configured ssid found");
-        ESP_LOGW(TAG, "found ssids: %s", foundSsids.c_str());
-        std::string configuredSsids;
-        for (const auto &config : config.sta.wifis)
+        ESP_LOGW(TAG, "no (more) configured ssid found");
+
         {
-            if (!configuredSsids.empty())
-                configuredSsids += ", ";
-            configuredSsids += config.ssid;
+            std::string foundSsids;
+            for (const auto &entry : scanResult.entries)
+            {
+                std::string_view scanSSID{(const char *)entry.ssid};
+                if (!foundSsids.empty())
+                    foundSsids += ", ";
+                foundSsids += scanSSID;
+            }
+            ESP_LOGW(TAG, "found ssids: %s", foundSsids.c_str());
         }
-        ESP_LOGW(TAG, "configured ssids: %s", configuredSsids.c_str());
+
+        {
+            std::string configuredSsids;
+            for (const auto &config : config.sta.wifis)
+            {
+                if (!configuredSsids.empty())
+                    configuredSsids += ", ";
+                configuredSsids += config.ssid;
+            }
+            ESP_LOGW(TAG, "configured ssids: %s", configuredSsids.c_str());
+        }
+
         setWifiState(WiFiState::None);
 
         return false;
     }
+
+    using wifi_stack::toString;
+
+    _currentConnectPlanEntry = _connectPlan.front();
+    _connectPlan.erase(std::begin(_connectPlan));
+
+    const auto scanResultIter = std::find_if(std::begin(scanResult.entries), std::end(scanResult.entries), [&](const wifi_ap_record_t &entry){
+        return mac_t{entry.bssid} == _currentConnectPlanEntry;
+    });
+
+    if (scanResultIter == std::end(scanResult.entries))
+    {
+        ESP_LOGW(TAG, "could not find bssid from connect plan in scan result %s", toString(_currentConnectPlanEntry).c_str());
+        return nextConnectPlanItem(config, scanResult);
+    }
+
+    const auto configIter = std::find_if(std::begin(config.sta.wifis), std::end(config.sta.wifis),
+                                         [ssid=scanResultIter->ssid](const wifi_entry &entry){ return entry.ssid == (const char *)ssid; });
+
+    if (configIter == std::end(config.sta.wifis))
+    {
+        ESP_LOGW(TAG, "could not find config for ssid %s", scanResultIter->ssid);
+        return nextConnectPlanItem(config, scanResult);
+    }
+
+    ESP_LOGI(TAG, "connecting to %s (auth=%s, key=%.*s, channel=%i, rssi=%i, bssid=%s)",
+             (const char *)scanResultIter->ssid,
+             toString(scanResultIter->authmode).c_str(),
+             configIter->key.size(), configIter->key.data(),
+             scanResultIter->primary,
+             scanResultIter->rssi,
+             toString(mac_t{scanResultIter->bssid}).c_str()
+    );
+    _lastConnect = espchrono::millis_clock::now();
+
+    ESP_LOGI(TAG, "resetting wifi connect fail counter");
+    _wifiConnectFailCounter = 0;
+    if (const auto result = wifi_sta_begin(config, *configIter, scanResultIter->primary, mac_t{scanResultIter->bssid}); result != ESP_OK)
+        ESP_LOGE(TAG, "wifi_sta_begin() failed with %s", esp_err_to_name(result));
+    setWifiState(WiFiState::Connecting);
+
+    return true;
 }
 
 void handleWifiEvents(const config &config, TickType_t xTicksToWait)

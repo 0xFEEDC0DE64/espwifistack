@@ -47,6 +47,10 @@ void update(const config &config);
 extern const uint8_t &sta_error_count;
 extern const std::string &last_sta_error_message;
 
+extern const std::vector<mac_t> &pastConnectPlan;
+extern const mac_t &currentConnectPlanEntry;
+extern const std::vector<mac_t> &connectPlan;
+
 //! Tells the status of the STA interface (connected, ...)
 WiFiStaStatus get_sta_status();
 
