@@ -1,4 +1,6 @@
 set(headers
+    src/asyncudplistener.h
+    src/udpsender.h
     src/espwifistack.h
     src/espwifistackconfig.h
     src/espwifistackenums.h
@@ -6,6 +8,8 @@ set(headers
 )
 
 set(sources
+    src/asyncudplistener.cpp
+    src/udpsender.cpp
     src/espwifistack.cpp
     src/espwifistackenums.cpp
     src/espwifiutils.cpp
