@@ -1,24 +1,25 @@
 set(headers
     src/asyncudplistener.h
-    src/udpsender.h
     src/espwifistack.h
     src/espwifistackconfig.h
     src/espwifistackenums.h
     src/espwifiutils.h
+    src/udpsender.h
 )
 
 set(sources
     src/asyncudplistener.cpp
-    src/udpsender.cpp
     src/espwifistack.cpp
     src/espwifistackenums.cpp
     src/espwifiutils.cpp
+    src/udpsender.cpp
 )
 
 set(dependencies
     arduino-esp32
-    lwip
+    esp_common
     esp_netif
+    lwip
 
     cpputils
     espchrono
@@ -26,8 +27,6 @@ set(dependencies
     expected
     fmt
 )
-
-message(STATUS "${dependencies}")
 
 idf_component_register(
     INCLUDE_DIRS
