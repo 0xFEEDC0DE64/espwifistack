@@ -235,4 +235,16 @@ std::string toString(ip_addr_t val)
     }
 }
 
+std::string toString(const esp_ip_addr_t &val)
+{
+    switch (val.type)
+    {
+    case IPADDR_TYPE_V4: return toString(val.u_addr.ip4);
+    case IPADDR_TYPE_V6: return toString(val.u_addr.ip6);
+    default:
+        ESP_LOGW(TAG, "Unknown ipv%hhu", val.type);
+        return fmt::format("Unknown ipv{}", val.type);
+    }
+}
+
 } // namespace wifi_stack
