@@ -1,5 +1,8 @@
 #include "espwifiutils.h"
 
+// system includes
+#include <cstdio>
+
 // esp-idf includes
 #include <esp_log.h>
 
@@ -116,13 +119,28 @@ std::string toString(esp_netif_dhcp_status_t status)
     }
 }
 
-std::string toString(const mac_t &mac)
+template<> tl::expected<mac_t, std::string> fromString<mac_t>(std::string_view str)
 {
-    return fmt::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-                       mac.at(0), mac.at(1), mac.at(2), mac.at(3), mac.at(4), mac.at(5));
+    mac_t result;
+    if (std::sscanf(str.data(), "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
+                    &result[0], &result[1], &result[2], &result[3], &result[4], &result[5]) == 6)
+        return result;
+
+    return tl::make_unexpected(fmt::format("invalid format ({})", str));
 }
 
-/*static*/ tl::expected<ip_address_t, std::string> ip_address_t::parseFromString(std::string_view address)
+std::string toString(const mac_t &val)
+{
+    return fmt::format("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+                       val.at(0), val.at(1), val.at(2), val.at(3), val.at(4), val.at(5));
+}
+
+std::string toString(const std::optional<mac_t> &val)
+{
+    return val ? toString(*val) : "nullopt";
+}
+
+template<> tl::expected<ip_address_t, std::string> fromString<ip_address_t>(std::string_view str)
 {
     // TODO: add support for "a", "a.b", "a.b.c" formats
     // TODO: replace with scanf for better performance
@@ -132,7 +150,7 @@ std::string toString(const mac_t &mac)
     uint16_t acc = 0; // Accumulator
     uint8_t dots = 0;
 
-    for (char c : address)
+    for (char c : str)
     {
         if (c >= '0' && c <= '9')
         {
@@ -145,7 +163,7 @@ std::string toString(const mac_t &mac)
             if (dots == 3)
                 return tl::make_unexpected("Too many dots (there must be 3 dots)");
 
-            result._bytes[dots++] = acc;
+            result[dots++] = acc;
             acc = 0;
         }
         else
@@ -155,14 +173,19 @@ std::string toString(const mac_t &mac)
     if (dots != 3)
         return tl::make_unexpected("Too few dots (there must be 3 dots)");
 
-    result._bytes[3] = acc;
+    result[3] = acc;
 
     return result;
 }
 
-std::string toString(const ip_address_t &address)
+std::string toString(ip_address_t val)
 {
-    return fmt::format("{}.{}.{}.{}", address[0], address[1], address[2], address[3]);
+    return fmt::format("{}.{}.{}.{}", val[0], val[1], val[2], val[3]);
+}
+
+std::string toString(const std::optional<ip_address_t> &val)
+{
+    return val ? toString(*val) : "nullopt";
 }
 
 ip_address_t wifi_calculate_network_id(ip_address_t ip, ip_address_t subnet)

@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <array>
+#include <optional>
 
 // esp-idf includes
 #include <esp_wifi_types.h>
@@ -24,12 +25,17 @@ std::string toString(wifi_cipher_type_t cipherType);
 std::string toString(esp_interface_t interface);
 std::string toString(esp_netif_dhcp_status_t status);
 
+template<typename T> tl::expected<T, std::string> fromString(std::string_view str) = delete;
+
 // A class to make it easier to handle and pass around mac addresses / bssids
 
 class mac_t : public std::array<uint8_t, 6>
 {
 public:
+    static constexpr const size_t static_size = 6;
+
     using std::array<uint8_t, 6>::array;
+    using std::array<uint8_t, 6>::operator=;
 
     constexpr explicit mac_t(const uint8_t (&arr)[6]) noexcept
     {
@@ -42,7 +48,9 @@ public:
     }
 };
 
-std::string toString(const mac_t &mac);
+template<> tl::expected<mac_t, std::string> fromString<mac_t>(std::string_view str);
+std::string toString(const mac_t &val);
+std::string toString(const std::optional<mac_t> &val);
 
 // A class to make it easier to handle and pass around IP addresses
 // Implementation taken from arduino-esp32
@@ -68,23 +76,22 @@ public:
     constexpr explicit ip_address_t(esp_ip4_addr_t address) noexcept : _value{address.addr} {}
     constexpr ip_address_t(std::array<uint8_t, 4> bytes) noexcept : _bytes{bytes} {}
 
-    static tl::expected<ip_address_t, std::string> parseFromString(std::string_view address);
-
     // Access the raw byte array containing the address.  Because this returns a pointer
     // to the internal structure rather than a copy of the address this function should only
     // be used when you know that the usage of the returned uint8_t* will be transient and not
     // stored.
     constexpr std::array<uint8_t, 4> &bytes() noexcept { return _bytes; }
-    constexpr std::array<uint8_t, 4> bytes() const noexcept { return _bytes; }
+    constexpr const std::array<uint8_t, 4> &bytes() const noexcept { return _bytes; }
 
-    constexpr value_t value() const noexcept { return _value; }
+    constexpr value_t &value() noexcept { return _value; }
+    constexpr const value_t &value() const noexcept { return _value; }
 
     friend constexpr bool operator==(const ip_address_t &left, const ip_address_t &right) noexcept { return left._value == right._value; }
     friend constexpr bool operator!=(const ip_address_t &left, const ip_address_t &right) noexcept { return !(left == right); }
 
     // Overloaded index operator to allow getting and setting individual octets of the address
-    constexpr uint8_t& operator[](int index) noexcept { return _bytes[index]; }
-    constexpr uint8_t operator[](int index) const noexcept { return _bytes[index]; }
+    constexpr uint8_t &operator[](int index) noexcept { return _bytes[index]; }
+    constexpr const uint8_t &operator[](int index) const noexcept { return _bytes[index]; }
 
     // Overloaded copy operators to allow initialisation of ip_address_t objects from other types
     constexpr ip_address_t& operator=(const ip_address_t &other) noexcept { _value = other._value; return *this; }
@@ -92,7 +99,9 @@ public:
     constexpr ip_address_t& operator=(value_t value) noexcept { _value = value; return *this; }
 };
 
-std::string toString(const ip_address_t &val);
+template<> tl::expected<ip_address_t, std::string> fromString<ip_address_t>(std::string_view str);
+std::string toString(ip_address_t val);
+std::string toString(const std::optional<ip_address_t> &val);
 
 ip_address_t wifi_calculate_network_id(ip_address_t ip, ip_address_t subnet);
 ip_address_t wifi_calculate_broadcast(ip_address_t ip, ip_address_t subnet);
