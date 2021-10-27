@@ -404,7 +404,7 @@ void update(const config &config)
         }
         else if (last_ap_config && !config.ap)
         {
-            ESP_LOGW(TAG, "AP disabled (NOT SUPPORTED YET)");
+            ESP_LOGI(TAG, "AP disabled");
         }
 
         last_ap_config = config.ap;
@@ -2021,7 +2021,7 @@ esp_err_t wifi_sync_mode(const config &config)
 
     if (config.ap)
     {
-        if (!esp_netifs[ESP_IF_WIFI_AP])
+        if (esp_netifs[ESP_IF_WIFI_AP])
         {
             if (const auto result = esp_netif_set_hostname(esp_netifs[ESP_IF_WIFI_AP], config.ap->hostname.c_str()); result != ESP_OK)
                 ESP_LOGE(TAG, "esp_netif_set_hostname() AP \"%s\" failed with %s", config.ap->hostname.c_str(), esp_err_to_name(result));
