@@ -1,7 +1,7 @@
 #pragma once
 
-// local includes
-#include "cpptypesafeenum.h"
+// 3rdparty lib includes
+#include <cpptypesafeenum.h>
 
 namespace wifi_stack {
 

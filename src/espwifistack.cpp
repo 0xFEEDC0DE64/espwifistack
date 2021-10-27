@@ -35,16 +35,14 @@
 
 // 3rdparty lib includes
 #include <fmt/core.h>
-
-// local includes
-#include "strutils.h"
-#include "delayedconstruction.h"
-#include "wrappers/event_group.h"
-#include "wrappers/queue.h"
-#include "strutils.h"
-#include "tickchrono.h"
-#include "cpputils.h"
-#include "cleanuphelper.h"
+#include <strutils.h>
+#include <delayedconstruction.h>
+#include <wrappers/event_group.h>
+#include <wrappers/queue.h>
+#include <tickchrono.h>
+#include <cpputils.h>
+#include <cleanuphelper.h>
+#include <futurecpp.h>
 
 using namespace std::chrono_literals;
 
@@ -64,7 +62,7 @@ espchrono::millis_clock::time_point _lastConnect;
 
 std::optional<static_ip_config> last_sta_static_ip;
 static_dns_config last_sta_static_dns;
-ap_config last_ap_config;
+std::optional<ap_config> last_ap_config;
 
 #ifdef CONFIG_ETH_ENABLED
 std::optional<static_ip_config> last_eth_static_ip;
@@ -102,7 +100,6 @@ esp_netif_t* esp_netifs[ESP_IF_MAX] = {NULL, NULL, NULL};
 namespace {
 bool lowLevelInitDone = false;
 bool _esp_wifi_started = false;
-bool _long_range = false;
 wifi_ps_type_t _sleepEnabled = WIFI_PS_MIN_MODEM;
 
 // sta
@@ -260,46 +257,36 @@ int wifi_get_status_bits();
 int wifi_wait_status_bits(int bits, espcpputils::ticks timeout);
 esp_err_t wifi_set_esp_interface_ip(esp_interface_t interface, const std::optional<static_ip_config> &ip);
 esp_err_t wifi_set_esp_interface_dns(esp_interface_t interface, const static_dns_config &dns);
-wifi_mode_t wifi_get_mode();
-esp_err_t wifi_set_mode(wifi_mode_t m, const config &config);
-esp_err_t wifi_enable_sta(bool enable, const config &config);
-esp_err_t wifi_enable_ap(bool enable, const config &config);
+esp_err_t wifi_sync_mode(const config &config);
 template<size_t LENGTH>
 size_t copyStrToBuf(uint8_t (&buf)[LENGTH], std::string_view str);
 wifi_config_t make_ap_config(const ap_config &ap_config);
-esp_err_t wifi_set_ap_config(const config &config, const ap_config &ap_config);
+esp_err_t wifi_set_ap_config(const ap_config &ap_config);
 void set_sta_status(WiFiStaStatus status);
 void wifi_scan_done();
-esp_err_t wifi_sta_disconnect(const config &config, bool wifioff = false, bool eraseap = false);
-esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
-                             int32_t channel = 0, std::optional<mac_t> bssid = {}, bool connect = true);
+esp_err_t wifi_sta_disconnect(const config &config, bool eraseap = false);
+esp_err_t wifi_sta_begin(const config &config, const sta_config &sta_config, const wifi_entry &wifi_entry,
+                         int32_t channel = 0, std::optional<mac_t> bssid = {}, bool connect = true);
 esp_err_t wifi_sta_restart(const config &config);
 void wifi_event_callback(const config &config, const WifiEvent &event);
 esp_err_t wifi_post_event(std::unique_ptr<const WifiEvent> event);
 void wifi_event_cb(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 esp_err_t wifi_start_network_event_task(const config &config);
-esp_err_t wifi_tcpip_init(const config &config);
 esp_err_t wifi_low_level_init(const config &config);
 esp_err_t wifi_start();
 esp_err_t wifi_low_level_deinit();
 esp_err_t wifi_stop();
-wifi_mode_t wifi_get_mode();
-esp_err_t wifi_set_mode(wifi_mode_t m, const config &config);
+tl::expected<void, std::string> applyBaseMac(const mac_t &mac);
+tl::expected<mac_t, std::string> expectedBaseMac(const config &config);
 esp_err_t wifi_set_ap_ip(const config &config, const static_ip_config &ip);
 wifi_config_t make_sta_config(std::string_view ssid, std::string_view password, int8_t min_rssi,
                               std::optional<mac_t> bssid, uint8_t channel);
-esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
-                             int32_t channel, std::optional<mac_t> bssid, bool connect);
-esp_err_t wifi_sta_restart(const config &config);
-esp_err_t wifi_sta_disconnect(const config &config, bool wifioff, bool eraseap);
-std::string calculateWifisChecksum(const config &config);
-esp_err_t wifi_begin_scan(const config &config, bool show_hidden = false, bool passive = false,
-                          espchrono::milliseconds32 max_ms_per_chan = 300ms, uint8_t channel = 0);
+std::string calculateWifisChecksum(const sta_config &sta_config);
 void setWifiState(WiFiState newWifiState);
-bool buildConnectPlan(const config &config);
-bool buildConnectPlan(const config &config, const scan_result &scanResult);
-bool nextConnectPlanItem(const config &config);
-bool nextConnectPlanItem(const config &config, const scan_result &scanResult);
+bool buildConnectPlan(const config &config, const sta_config &sta_config);
+bool buildConnectPlan(const config &config, const sta_config &sta_config, const scan_result &scanResult);
+bool nextConnectPlanItem(const config &config, const sta_config &sta_config);
+bool nextConnectPlanItem(const config &config, const sta_config &sta_config, const scan_result &scanResult);
 void handleWifiEvents(const config &config, TickType_t xTicksToWait);
 #ifdef CONFIG_ETH_ENABLED
 esp_err_t eth_begin(const config &config, uint8_t phy_addr = ETH_PHY_ADDR, int power = ETH_PHY_POWER, int mdc = ETH_PHY_MDC,
@@ -313,72 +300,112 @@ void emac_config_apll_clock();
 
 void init(const config &config)
 {
-    ESP_LOGI(TAG, "called");
-
-    if (const auto result = wifi_set_mode(WIFI_MODE_APSTA, config); result != ESP_OK)
+    if (const auto mac = expectedBaseMac(config))
     {
-        ESP_LOGE(TAG, "wifi_set_mode() failed with %s", esp_err_to_name(result));
-        return;
+        if (const auto result = applyBaseMac(*mac); result)
+            ESP_LOGI(TAG, "applyBaseMac() %s succeeded", toString(*mac).c_str());
+        else
+            ESP_LOGE(TAG, "applyBaseMac() %s failed: %.*s", toString(*mac).c_str(), result.error().size(), result.error().data());
     }
+    else
+        ESP_LOGE(TAG, "expectedBaseMac() failed: %.*s", mac.error().size(), mac.error().data());
+
+    if (const auto result = esp_netif_init(); result != ESP_OK)
+        ESP_LOGE(TAG, "esp_netif_init() failed with %s", esp_err_to_name(result));
+
+    espcpputils::delay(100ms);
+
+    if (const auto result = wifi_start_network_event_task(config); result != ESP_OK)
+        ESP_LOGE(TAG, "wifi_start_network_event_task() failed with %s", esp_err_to_name(result));
+
+    if (const auto result = wifi_sync_mode(config); result != ESP_OK)
+        ESP_LOGE(TAG, "wifi_sync_mode() failed with %s", esp_err_to_name(result));
 
 #ifdef CONFIG_ETH_ENABLED
     if (const auto result = eth_begin(config); result != ESP_OK)
         ESP_LOGE(TAG, "eth_begin() failed with %s", esp_err_to_name(result));
 #endif
 
-    espcpputils::delay(100ms);
-
-    if (const auto result = wifi_enable_ap(true, config); result != ESP_OK)
+    if (config.ap)
     {
-        ESP_LOGE(TAG, "wifi_enable_ap() failed with %s", esp_err_to_name(result));
-        return;
-    }
+        if (const auto result = wifi_set_ap_ip(config, config.ap->static_ip); result != ESP_OK)
+            ESP_LOGE(TAG, "wifi_set_ap_ip() failed with %s", esp_err_to_name(result));
 
-    if (const auto result = wifi_set_ap_ip(config, config.ap.static_ip); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "wifi_set_ap_ip() failed with %s", esp_err_to_name(result));
-        return;
-    }
-
-    if (const auto result = wifi_set_ap_config(config, config.ap); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "wifi_set_ap_config() failed with %s", esp_err_to_name(result));
-        return;
+        if (const auto result = wifi_set_ap_config(*config.ap); result != ESP_OK)
+            ESP_LOGE(TAG, "wifi_set_ap_config() failed with %s", esp_err_to_name(result));
     }
 
     last_ap_config = config.ap;
 
     _wifiState = WiFiState::None;
 
-    lastWifisChecksum = calculateWifisChecksum(config);
-    if (config.sta.enabled)
+    if (config.sta)
     {
-        if (const auto result = begin_scan(config); result != ESP_OK)
-            ESP_LOGE(TAG, "begin_scan() failed with %s", esp_err_to_name(result));
+        lastWifisChecksum = calculateWifisChecksum(*config.sta);
+        if (const auto result = begin_scan(*config.sta); !result)
+            ESP_LOGE(TAG, "begin_scan() failed with: %.*s", result.error().size(), result.error().data());
     }
     else
-        ESP_LOGW(TAG, "not connecting, because wifi is not enabled");
+        ESP_LOGW(TAG, "not scanning, because wifi is not enabled");
 }
 
 void update(const config &config)
 {
     handleWifiEvents(config, 0);
 
+    if (const auto expected = expectedBaseMac(config))
+    {
+        if (const auto actual = get_base_mac_addr())
+        {
+            if (*expected != *actual)
+            {
+                if (const auto result = applyBaseMac(*expected))
+                    ESP_LOGI(TAG, "changed base mac from %s to %s", toString(*actual).c_str(), toString(*expected).c_str());
+                else
+                    ESP_LOGE(TAG, "applyBaseMac() %s failed: %.*s", toString(*expected).c_str(), result.error().size(), result.error().data());
+            }
+        }
+        else
+            ESP_LOGE(TAG, "get_base_mac_addr() failed: %.*s", actual.error().size(), actual.error().data());
+    }
+    else
+        ESP_LOGE(TAG, "expectedBaseMac() failed: %.*s", expected.error().size(), expected.error().data());
+
+    if (const auto result = wifi_sync_mode(config); result != ESP_OK)
+        ESP_LOGE(TAG, "wifi_sync_mode() failed with %s", esp_err_to_name(result));
+
     if (last_ap_config != config.ap)
     {
-        ESP_LOGI(TAG, "AP settings changed, applying new config...");
+        if (last_ap_config && config.ap)
+        {
+            ESP_LOGI(TAG, "AP settings changed, applying new config...");
 
-        if (config.ap.ssid != last_ap_config.ssid)
-            ESP_LOGD(TAG, "new ap ssid=\"%s\" old ap ssid=\"%s\"", config.ap.ssid.c_str(), last_ap_config.ssid.c_str());
+            if (config.ap->ssid != last_ap_config->ssid)
+                ESP_LOGI(TAG, "new ap ssid=\"%s\" old ap ssid=\"%s\"", config.ap->ssid.c_str(), last_ap_config->ssid.c_str());
 
-        if (config.ap.key != last_ap_config.key)
-            ESP_LOGD(TAG, "new ap key=\"%s\" old ap key=\"%s\"", config.ap.key.c_str(), last_ap_config.key.c_str());
+            if (config.ap->key != last_ap_config->key)
+                ESP_LOGI(TAG, "new ap key=\"%s\" old ap key=\"%s\"", config.ap->key.c_str(), last_ap_config->key.c_str());
 
-        if (const auto result = wifi_set_ap_ip(config, config.ap.static_ip); result != ESP_OK)
-            ESP_LOGE(TAG, "wifi_set_ap_ip() failed with %s", esp_err_to_name(result));
+            if (const auto result = wifi_set_ap_ip(config, config.ap->static_ip); result != ESP_OK)
+                ESP_LOGE(TAG, "wifi_set_ap_ip() failed with %s", esp_err_to_name(result));
 
-        if (const auto result = wifi_set_ap_config(config, config.ap); result != ESP_OK)
-            ESP_LOGE(TAG, "wifi_set_ap_config() failed with %s", esp_err_to_name(result));
+            if (const auto result = wifi_set_ap_config(*config.ap); result != ESP_OK)
+                ESP_LOGE(TAG, "wifi_set_ap_config() failed with %s", esp_err_to_name(result));
+        }
+        else if (!last_ap_config && config.ap)
+        {
+            ESP_LOGI(TAG, "AP enabled");
+
+            if (const auto result = wifi_set_ap_ip(config, config.ap->static_ip); result != ESP_OK)
+                ESP_LOGE(TAG, "wifi_set_ap_ip() failed with %s", esp_err_to_name(result));
+
+            if (const auto result = wifi_set_ap_config(*config.ap); result != ESP_OK)
+                ESP_LOGE(TAG, "wifi_set_ap_config() failed with %s", esp_err_to_name(result));
+        }
+        else if (last_ap_config && !config.ap)
+        {
+            ESP_LOGW(TAG, "AP disabled (NOT SUPPORTED YET)");
+        }
 
         last_ap_config = config.ap;
     }
@@ -389,7 +416,7 @@ void update(const config &config)
         scanResultChanged();
     }
 
-    if (config.sta.enabled)
+    if (config.sta)
     {
         if (_wifiState == WiFiState::None)
         {
@@ -401,16 +428,16 @@ void update(const config &config)
             }
             else
             {
-                const auto anyWifiConfigured = std::any_of(std::begin(config.sta.wifis), std::end(config.sta.wifis),
+                const auto anyWifiConfigured = std::any_of(std::begin(config.sta->wifis), std::end(config.sta->wifis),
                                                            [](const auto &entry){ return !entry.ssid.empty(); });
                 if (anyWifiConfigured)
                 {
-                    if (!lastScanStarted || espchrono::ago(*lastScanStarted) >= 10min)
+                    if (!lastScanStarted || (config.sta->scan.interval && espchrono::ago(*lastScanStarted) >= *config.sta->scan.interval))
                     {
-                        if (const auto result = begin_scan(config); result != ESP_OK)
-                            ESP_LOGE(TAG, "begin_scan() failed with %s", esp_err_to_name(result));
+                        if (const auto result = begin_scan(*config.sta); !result)
+                            ESP_LOGE(TAG, "begin_scan() failed: %.*s", result.error().size(), result.error().data());
                     }
-                    else if (auto newChecksum = calculateWifisChecksum(config); newChecksum != lastWifisChecksum)
+                    else if (auto newChecksum = calculateWifisChecksum(*config.sta); newChecksum != lastWifisChecksum)
                     {
                         ESP_LOGI(TAG, "old wifis config: %s", lastWifisChecksum.c_str());
                         ESP_LOGI(TAG, "new wifis config: %s", newChecksum.c_str());
@@ -421,7 +448,7 @@ void update(const config &config)
                             if (const auto &scanResult = get_scan_result(); scanResult && !scanResult->entries.empty())
                             {
                                 ESP_LOGI(TAG, "wifi configs changed, building connect plan...");
-                                buildConnectPlan(config, *scanResult);
+                                buildConnectPlan(config, *config.sta, *scanResult);
                             }
                             else
                                 goto scanAnyways;
@@ -430,8 +457,8 @@ void update(const config &config)
                         {
                             scanAnyways:
                             ESP_LOGI(TAG, "wifi configs changed, triggering a new scan");
-                            if (const auto result = begin_scan(config); result != ESP_OK)
-                                ESP_LOGE(TAG, "begin_scan() failed with %s", esp_err_to_name(result));
+                            if (const auto result = begin_scan(*config.sta); !result)
+                                ESP_LOGE(TAG, "begin_scan() failed: %.*s", result.error().size(), result.error().data());
                         }
                     }
                 }
@@ -462,7 +489,7 @@ void update(const config &config)
                         if (get_sta_status() != WiFiStaStatus::CONNECTED)
                         {
                             ESP_LOGI(TAG, "Not connected after scan, building connect plan...");
-                            buildConnectPlan(config, *scanResult);
+                            buildConnectPlan(config, *config.sta, *scanResult);
                         }
                         else
                         {
@@ -515,7 +542,7 @@ void update(const config &config)
                 if (_wifiConnectFailCounter++ >= 10)
                 {
                     ESP_LOGE(TAG, "fail flag was set and fail count exceeded limit");
-                    if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
+                    if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
                         ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
                     setWifiState(WiFiState::None); // results in another scan
                 }
@@ -538,7 +565,7 @@ void update(const config &config)
                     if (_wifiConnectFailCounter++ >= 10)
                     {
                         ESP_LOGE(TAG, "connecting timed out, fail flag was set and fail count exceeded limit");
-                        if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
+                        if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
                             ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
                         setWifiState(WiFiState::None); // results in another scan
                     }
@@ -546,10 +573,10 @@ void update(const config &config)
                     {
                         ESP_LOGW(TAG, "connecting timed out, building new connect plan... %s %hhu", toString(status).c_str(), _wifiConnectFailCounter);
 
-                        if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
+                        if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
                             ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
 
-                        buildConnectPlan(config);
+                        buildConnectPlan(config, *config.sta);
 
                         lastStatus = std::nullopt;
                     }
@@ -568,7 +595,7 @@ void update(const config &config)
             if (status != WiFiStaStatus::CONNECTED)
             {
                 ESP_LOGW(TAG, "lost connection: %s", toString(status).c_str());
-                if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
+                if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
                     ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
                 lastWifisChecksum.clear();
                 setWifiState(WiFiState::None); // results in another scan
@@ -576,16 +603,16 @@ void update(const config &config)
             else if (const auto sta_info = get_sta_ap_info())
             {
                 const std::string_view connectedSSID{reinterpret_cast<const char *>(sta_info->ssid)};
-                const auto iter = std::find_if(std::cbegin(config.sta.wifis), std::cend(config.sta.wifis),
+                const auto iter = std::find_if(std::cbegin(config.sta->wifis), std::cend(config.sta->wifis),
                                               [&connectedSSID](const wifi_entry &entry){
                                                   return cpputils::stringEqualsIgnoreCase(entry.ssid, connectedSSID);
                                               });
 
-                if (iter == std::cend(config.sta.wifis))
+                if (iter == std::cend(config.sta->wifis))
                 {
                     ESP_LOGI(TAG, "disconnecting, because cannot find ssid in config anymore");
                     lastWifisChecksum.clear();
-                    if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
+                    if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
                         ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
                     ESP_LOGI(TAG, "status after disconnect: %s", toString(get_sta_status()).c_str());
 
@@ -635,7 +662,7 @@ void update(const config &config)
         {
             ESP_LOGI(TAG, "disconnecting, because wifi_enabled is false");
 
-            if (const auto result = wifi_sta_disconnect(config, false, true); result != ESP_OK)
+            if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
                 ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
             lastWifisChecksum.clear();
             setWifiState(WiFiState::None);
@@ -646,7 +673,7 @@ void update(const config &config)
     if (eth_initialized)
     {
         bool justStarted{};
-        if (config.eth.enabled && !eth_started)
+        if (config.eth && !eth_started)
         {
             if (const auto result = esp_eth_start(eth_handle); result != ESP_OK)
             {
@@ -659,7 +686,7 @@ void update(const config &config)
                 justStarted = true;
             }
         }
-        else if (!config.eth.enabled && eth_started)
+        else if (!config.eth && eth_started)
         {
             if (const auto result = esp_eth_stop(eth_handle); result != ESP_OK)
             {
@@ -672,35 +699,50 @@ void update(const config &config)
             }
         }
 
-        if (config.eth.enabled && eth_started && (
+        if (config.eth && eth_started && (
                     justStarted ||
-                    last_eth_static_ip != config.eth.static_ip ||
-                    last_eth_static_dns != config.eth.static_dns
+                    last_eth_static_ip != config.eth->static_ip ||
+                    last_eth_static_dns != config.eth->static_dns
                 ))
         {
             if (!justStarted)
                 ESP_LOGI(TAG, "ETH static ip/dns config changed, applying new config");
 
-            if (const auto result = wifi_set_esp_interface_ip(ESP_IF_ETH, config.eth.static_ip); result != ESP_OK)
+            if (const auto result = wifi_set_esp_interface_ip(ESP_IF_ETH, config.eth->static_ip); result != ESP_OK)
             {
                 ESP_LOGE(TAG, "wifi_set_esp_interface_ip() for ETH failed with %s", esp_err_to_name(result));
                 //return result;
             }
             else
             {
-                last_eth_static_ip = config.eth.static_ip;
+                last_eth_static_ip = config.eth->static_ip;
 
-                if (const auto result = wifi_set_esp_interface_dns(ESP_IF_ETH, config.eth.static_dns); result != ESP_OK)
+                if (const auto result = wifi_set_esp_interface_dns(ESP_IF_ETH, config.eth->static_dns); result != ESP_OK)
                 {
                     ESP_LOGE(TAG, "wifi_set_esp_interface_dns() for ETH failed with %s", esp_err_to_name(result));
                     //return result;
                 }
                 else
-                    last_eth_static_dns = config.eth.static_dns;
+                    last_eth_static_dns = config.eth->static_dns;
             }
         }
     }
 #endif
+}
+
+wifi_mode_t get_wifi_mode()
+{
+    if (!lowLevelInitDone || !_esp_wifi_started)
+        return WIFI_MODE_NULL;
+
+    wifi_mode_t mode;
+    if (const auto result = esp_wifi_get_mode(&mode); result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "esp_wifi_get_mode() returned %s", esp_err_to_name(result));
+        return WIFI_MODE_NULL;
+    }
+
+    return mode;
 }
 
 WiFiStaStatus get_sta_status()
@@ -708,19 +750,56 @@ WiFiStaStatus get_sta_status()
     return _sta_status.load();
 }
 
-esp_err_t begin_scan(const config &config)
+tl::expected<void, std::string> begin_scan(const sta_config &sta_config)
 {
-    if (const auto result = wifi_begin_scan(config); result != ESP_OK)
+    if (!(get_wifi_mode() & WIFI_MODE_STA))
+        return tl::make_unexpected("STA mode missing");
+
+    if (wifi_get_status_bits() & WIFI_SCANNING_BIT)
+        return tl::make_unexpected("already scanning");
+
+    delete_scan_result();
+
+    wifi_scan_config_t scan_config;
+    scan_config.ssid = 0;
+    scan_config.bssid = 0;
+    scan_config.channel = sta_config.scan.channel;
+    scan_config.show_hidden = sta_config.scan.show_hidden;
+
+    if (std::holds_alternative<sta_active_scan_config>(sta_config.scan.time))
     {
-        ESP_LOGE(TAG, "wifi_begin_scan() failed with %s", esp_err_to_name(result));
-        return result;
+        scan_config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+
+        const auto &time = std::get<sta_active_scan_config>(sta_config.scan.time);
+        scan_config.scan_time.active.min = time.min_per_chan.count();
+        scan_config.scan_time.active.max = time.max_per_chan.count();
+        scanTimeout = time.max_per_chan * 20;
     }
+    else if (std::holds_alternative<sta_passive_scan_config>(sta_config.scan.time))
+    {
+        scan_config.scan_type = WIFI_SCAN_TYPE_PASSIVE;
+
+        const auto &time = std::get<sta_passive_scan_config>(sta_config.scan.time);
+        scan_config.scan_time.passive = time.max_per_chan.count();
+        scanTimeout = time.max_per_chan * 20;
+    }
+    else
+        return tl::make_unexpected("invalid scan settings (not active nor passive)!");
+
+    if (const auto result = esp_wifi_scan_start(&scan_config, false) != ESP_OK)
+        return tl::make_unexpected(fmt::format("esp_wifi_scan_start() failed with: {}", esp_err_to_name(result)));
+
+    scanStarted = espchrono::millis_clock::now();
+
+    wifi_clear_status_bits(WIFI_SCAN_DONE_BIT);
+    wifi_set_status_bits(WIFI_SCANNING_BIT);
 
     lastScanStarted = espchrono::millis_clock::now();
-    setWifiState(WiFiState::Scanning);
+    if (_wifiState != WiFiState::Connected)
+        setWifiState(WiFiState::Scanning);
     wasReallyScanning = true;
 
-    return ESP_OK;
+    return {};
 }
 
 WiFiScanStatus get_scan_status()
@@ -768,21 +847,41 @@ tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info()
     }
 }
 
-tl::expected<wifi_stack::mac_t, std::string> get_default_mac_addr()
+mac_or_error get_default_mac_addr()
 {
-    wifi_stack::mac_t mac{};
-    if (const auto result = esp_efuse_mac_get_default(std::begin(mac)); result == ESP_OK)
-        return mac;
-    else
-    {
-        ESP_LOGE(TAG, "esp_efuse_mac_get_default() failed with %s", esp_err_to_name(result));
-        return tl::make_unexpected(fmt::format("esp_efuse_mac_get_default() failed with {}", esp_err_to_name(result)));
-    }
+    static const mac_or_error cachedResult = []() -> mac_or_error {
+        mac_t mac{};
+        if (const auto result = esp_efuse_mac_get_default(std::begin(mac)); result == ESP_OK)
+            return mac;
+        else
+        {
+            //ESP_LOGE(TAG, "esp_efuse_mac_get_default() failed with %s", esp_err_to_name(result));
+            return tl::make_unexpected(fmt::format("esp_efuse_mac_get_default() failed with {}", esp_err_to_name(result)));
+        }
+    }();
+
+    return cachedResult;
 }
 
-tl::expected<wifi_stack::mac_t, std::string> get_base_mac_addr()
+mac_or_error get_custom_mac_addr()
 {
-    wifi_stack::mac_t mac{};
+    static const mac_or_error cachedResult = []() -> mac_or_error {
+        mac_t mac{};
+        if (const auto result = esp_efuse_mac_get_custom(std::begin(mac)); result == ESP_OK)
+            return mac;
+        else
+        {
+            //ESP_LOGE(TAG, "esp_efuse_mac_get_custom() failed with %s", esp_err_to_name(result));
+            return tl::make_unexpected(fmt::format("esp_efuse_mac_get_custom() failed with {}", esp_err_to_name(result)));
+        }
+    }();
+
+    return cachedResult;
+}
+
+mac_or_error get_base_mac_addr()
+{
+    mac_t mac{};
     if (const auto result = esp_base_mac_addr_get(std::begin(mac)); result == ESP_OK)
         return mac;
     else
@@ -792,7 +891,7 @@ tl::expected<wifi_stack::mac_t, std::string> get_base_mac_addr()
     }
 }
 
-tl::expected<void, std::string> set_base_mac_addr(wifi_stack::mac_t mac_addr)
+tl::expected<void, std::string> set_base_mac_addr(mac_t mac_addr)
 {
     if (const auto result = esp_base_mac_addr_set(std::cbegin(mac_addr)); result == ESP_OK)
         return {};
@@ -813,6 +912,26 @@ tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_
         ESP_LOGE(TAG, "tcpip_adapter_get_ip_info() failed with %s", esp_err_to_name(result));
         return tl::make_unexpected(fmt::format("tcpip_adapter_get_ip_info() failed with {}", esp_err_to_name(result)));
     }
+}
+
+tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_interface_t interf)
+{
+    if (const auto netif = esp_netifs[interf])
+        return get_hostname_for_interface(netif);
+    else
+        return tl::make_unexpected(fmt::format("netif for {} is invalid", std::to_underlying(interf)));
+}
+
+tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_netif_t *esp_netif)
+{
+    const char *hostname{};
+    if (const auto result = esp_netif_get_hostname(esp_netif, &hostname))
+        return tl::make_unexpected(fmt::format("esp_netif_get_hostname() failed with {}", esp_err_to_name(result)));
+
+    if (!hostname)
+        return tl::make_unexpected("esp_netif_get_hostname() returned a nullptr string");
+
+    return std::string_view{hostname};
 }
 
 #ifdef CONFIG_ETH_ENABLED
@@ -881,10 +1000,9 @@ esp_err_t wifi_set_esp_interface_ip(esp_interface_t interface, const std::option
     }
 
     esp_netif_t * const esp_netif = esp_netifs[interface];
-
     if (!esp_netif)
     {
-        ESP_LOGE(TAG, "esp_netif is invalid");
+        ESP_LOGE(TAG, "netif for %i is invalid", std::to_underlying(interface));
         return ESP_FAIL;
     }
 
@@ -942,6 +1060,11 @@ esp_err_t wifi_set_esp_interface_ip(esp_interface_t interface, const std::option
 esp_err_t wifi_set_esp_interface_dns(esp_interface_t interface, const static_dns_config &dns)
 {
     esp_netif_t *esp_netif = esp_netifs[interface];
+    if (!esp_netif)
+    {
+        ESP_LOGE(TAG, "netif for %i is invalid", std::to_underlying(interface));
+        return ESP_FAIL;
+    }
 
     esp_netif_dns_info_t dns_info;
     dns_info.ip.type = ESP_IPADDR_TYPE_V4;
@@ -989,46 +1112,6 @@ esp_err_t wifi_set_esp_interface_dns(esp_interface_t interface, const static_dns
     return ESP_OK;
 }
 
-esp_err_t wifi_enable_sta(bool enable, const config &config)
-{
-    wifi_mode_t currentMode = wifi_get_mode();
-    bool isEnabled = currentMode & WIFI_MODE_STA;
-
-    if (isEnabled == enable)
-        return ESP_OK;
-
-    const wifi_mode_t mode = enable ?
-                (wifi_mode_t)(currentMode | WIFI_MODE_STA) :
-                (wifi_mode_t)(currentMode & (~WIFI_MODE_STA));
-
-    if (const auto result = wifi_set_mode(mode, config); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "wifi_set_mode() failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    return ESP_OK;
-}
-
-esp_err_t wifi_enable_ap(bool enable, const config &config)
-{
-    wifi_mode_t currentMode = wifi_get_mode();
-    bool isEnabled = currentMode & WIFI_MODE_AP;
-
-    if (isEnabled == enable)
-        return ESP_OK;
-
-    esp_err_t result;
-    if (enable)
-        result = wifi_set_mode((wifi_mode_t)(currentMode | WIFI_MODE_AP), config);
-    else
-        result = wifi_set_mode((wifi_mode_t)(currentMode & (~WIFI_MODE_AP)), config);
-
-    if (result != ESP_OK)
-        ESP_LOGE(TAG, "wifi_set_mode() failed with %s", esp_err_to_name(result));
-    return result;
-}
-
 template<size_t LENGTH>
 size_t copyStrToBuf(uint8_t (&buf)[LENGTH], std::string_view str)
 {
@@ -1045,7 +1128,7 @@ wifi_config_t make_ap_config(const ap_config &ap_config)
     wifi_config.ap.channel = ap_config.channel;
     wifi_config.ap.max_connection = ap_config.max_connection;
     wifi_config.ap.beacon_interval = ap_config.beacon_interval;
-    wifi_config.ap.ssid_hidden = false;
+    wifi_config.ap.ssid_hidden = ap_config.ssid_hidden;
     wifi_config.ap.authmode = WIFI_AUTH_OPEN;
     wifi_config.ap.ssid_len = 0;
     wifi_config.ap.ssid[0] = 0;
@@ -1055,7 +1138,7 @@ wifi_config_t make_ap_config(const ap_config &ap_config)
         auto ssidCutLength = copyStrToBuf(wifi_config.ap.ssid, ap_config.ssid);
         wifi_config.ap.ssid_len = ssidCutLength;
 
-        if (!ap_config.key.empty())
+        if (!ap_config.key.empty() && ap_config.authmode != WIFI_AUTH_OPEN)
         {
             wifi_config.ap.authmode = ap_config.authmode;
             copyStrToBuf(wifi_config.ap.password, ap_config.key);
@@ -1064,7 +1147,7 @@ wifi_config_t make_ap_config(const ap_config &ap_config)
     return wifi_config;
 }
 
-esp_err_t wifi_set_ap_config(const config &config, const ap_config &ap_config)
+esp_err_t wifi_set_ap_config(const ap_config &ap_config)
 {
     if (ap_config.ssid.empty())
     {
@@ -1765,56 +1848,10 @@ esp_err_t wifi_start_network_event_task(const config &config)
     return ESP_OK;
 }
 
-esp_err_t wifi_tcpip_init(const config &config)
-{
-    static bool initialized = false;
-
-    if (initialized)
-        return ESP_OK;
-
-#if CONFIG_IDF_TARGET_ESP32
-    if (const auto mac = get_default_mac_addr())
-    {
-        if (const auto result = set_base_mac_addr(*mac))
-        {
-        }
-        else
-        {
-            ESP_LOGE(TAG, "set_base_mac_addr() failed: %.*s", result.error().size(), result.error().data());
-        }
-    }
-    else
-    {
-        ESP_LOGE(TAG, "get_default_mac_addr() failed: %.*s", mac.error().size(), mac.error().data());
-    }
-#endif
-
-    if (const auto result = esp_netif_init(); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "esp_netif_init() failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    if (const auto result = wifi_start_network_event_task(config); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "wifi_start_network_event_task() failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    initialized = true;
-    return ESP_OK;
-}
-
 esp_err_t wifi_low_level_init(const config &config)
 {
     if (lowLevelInitDone)
         return ESP_OK;
-
-    if (const auto result = wifi_tcpip_init(config); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "wifi_tcpip_init() failed with %s", esp_err_to_name(result));
-        return result;
-    }
 
     if (!esp_netifs[ESP_IF_WIFI_AP])
     {
@@ -1906,28 +1943,55 @@ esp_err_t wifi_stop()
     return ESP_OK;
 }
 
-wifi_mode_t wifi_get_mode()
+tl::expected<void, std::string> applyBaseMac(const mac_t &mac)
 {
-    if (!lowLevelInitDone || !_esp_wifi_started)
-        return WIFI_MODE_NULL;
-
-    wifi_mode_t mode;
-    if (const auto result = esp_wifi_get_mode(&mode); result != ESP_OK)
+    if (const auto result = set_base_mac_addr(mac); result)
+        return {};
+    else
     {
-        ESP_LOGE(TAG, "esp_wifi_get_mode() returned %s", esp_err_to_name(result));
-        return WIFI_MODE_NULL;
+        const auto msg = fmt::format("set_base_mac_addr() {} failed: {}", toString(mac), result.error());
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(msg);
     }
-
-    return mode;
 }
 
-esp_err_t wifi_set_mode(wifi_mode_t m, const config &config)
+tl::expected<mac_t, std::string> expectedBaseMac(const config &config)
 {
-    wifi_mode_t cm = wifi_get_mode();
-    if (cm == m)
+    if (config.base_mac_override)
+    {
+        if (*config.base_mac_override != mac_t{})
+            return *config.base_mac_override;
+        else
+            ESP_LOGW(TAG, "invalid base_mac_override %s", toString(*config.base_mac_override).c_str());
+    }
+
+    if (const auto mac = get_custom_mac_addr())
+        return *mac;
+    //else
+        //ESP_LOGW(TAG, "get_custom_mac_addr() failed %.*s", mac.error().size(), mac.error().data());
+
+    if (const auto mac = get_default_mac_addr())
+        return *mac;
+    else
+    {
+        const auto msg = fmt::format("no base mac fuse or override set and get_default_mac_addr() failed: {}", mac.error());
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(msg);
+    }
+}
+
+esp_err_t wifi_sync_mode(const config &config)
+{
+    const wifi_mode_t newMode = wifi_mode_t(
+        (config.sta ? WIFI_MODE_STA : WIFI_MODE_NULL) |
+        (config.ap ? WIFI_MODE_AP : WIFI_MODE_NULL));
+
+    const wifi_mode_t oldMode = get_wifi_mode();
+
+    if (oldMode == newMode)
         return ESP_OK;
 
-    if (!cm && m)
+    if (!oldMode && newMode)
     {
         if (const auto result = wifi_low_level_init(config); result != ESP_OK)
         {
@@ -1935,7 +1999,7 @@ esp_err_t wifi_set_mode(wifi_mode_t m, const config &config)
             return result;
         }
     }
-    else if (cm && !m)
+    else if (oldMode && !newMode)
     {
         if (const auto result = wifi_stop(); result != ESP_OK)
         {
@@ -1944,45 +2008,46 @@ esp_err_t wifi_set_mode(wifi_mode_t m, const config &config)
         }
     }
 
-    if (m & WIFI_MODE_STA)
+    if (config.sta)
     {
-        if (const auto result = esp_netif_set_hostname(esp_netifs[ESP_IF_WIFI_STA], config.hostname.c_str()); result != ESP_OK)
+        if (esp_netifs[ESP_IF_WIFI_STA])
         {
-            ESP_LOGE(TAG, "esp_netif_set_hostname() \"%s\" failed with %s", config.hostname.c_str(), esp_err_to_name(result));
+            if (const auto result = esp_netif_set_hostname(esp_netifs[ESP_IF_WIFI_STA], config.sta->hostname.c_str()); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_netif_set_hostname() STA \"%s\" failed with %s", config.sta->hostname.c_str(), esp_err_to_name(result));
+        }
+        else
+            ESP_LOGE(TAG, "netif for STA is invalid");
+    }
+
+    if (config.ap)
+    {
+        if (!esp_netifs[ESP_IF_WIFI_AP])
+        {
+            if (const auto result = esp_netif_set_hostname(esp_netifs[ESP_IF_WIFI_AP], config.ap->hostname.c_str()); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_netif_set_hostname() AP \"%s\" failed with %s", config.ap->hostname.c_str(), esp_err_to_name(result));
+        }
+        else
+            ESP_LOGE(TAG, "netif for AP is invalid");
+    }
+
+    if (const auto result = esp_wifi_set_mode(newMode); result != ESP_OK)
+        ESP_LOGE(TAG, "esp_wifi_set_mode() failed with %s", esp_err_to_name(result));
+
+    if (newMode)
+    {
+        if (config.sta && config.sta->long_range)
+            if (const auto result = esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_wifi_set_protocol() for STA long range failed with %s", esp_err_to_name(result));
+
+        if (config.ap && config.ap->long_range)
+            if (const auto result = esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_LR); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_wifi_set_protocol() for AP long range failed with %s", esp_err_to_name(result));
+
+        if (const auto result = wifi_start(); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "wifi_start() failed with %s", esp_err_to_name(result));
             return result;
         }
-    }
-
-    if (const auto result = esp_wifi_set_mode(m); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "esp_wifi_set_mode() failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    if (_long_range)
-    {
-        if (m & WIFI_MODE_STA)
-        {
-            if (const auto result = esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR); result != ESP_OK)
-            {
-                ESP_LOGE(TAG, "esp_wifi_set_protocol() for STA long range failed with %s", esp_err_to_name(result));
-                return result;
-            }
-        }
-        if (m & WIFI_MODE_AP)
-        {
-            if (const auto result = esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_LR); result != ESP_OK)
-            {
-                ESP_LOGE(TAG, "esp_wifi_set_protocol() for AP long range failed with %s", esp_err_to_name(result));
-                return result;
-            }
-        }
-    }
-
-    if (const auto result = wifi_start(); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "wifi_start() failed with %s", esp_err_to_name(result));
-        return result;
     }
 
     return ESP_OK;
@@ -1995,6 +2060,11 @@ esp_err_t wifi_set_ap_ip(const config &config, const static_ip_config &ip)
     ESP_LOGI(TAG, "ip=%s subnet=%s gateway=%s", toString(ip.ip).c_str(), toString(ip.subnet).c_str(), toString(ip.gateway).c_str());
 
     esp_netif_t * const esp_netif = esp_netifs[ESP_IF_WIFI_AP];
+    if (!esp_netif)
+    {
+        ESP_LOGE(TAG, "netif for AP is invalid");
+        return ESP_FAIL;
+    }
 
     {
         esp_netif_dhcp_status_t status;
@@ -2099,43 +2169,43 @@ wifi_config_t make_sta_config(std::string_view ssid, std::string_view password, 
     return wifi_config;
 }
 
-esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
+esp_err_t wifi_sta_begin(const config &config, const sta_config &sta_config, const wifi_entry &wifi_entry,
                          int32_t channel, std::optional<mac_t> bssid, bool connect)
 {
-    if (const auto result = wifi_enable_sta(true, config); result != ESP_OK)
+    if (!(get_wifi_mode() & WIFI_MODE_STA))
     {
-        ESP_LOGE(TAG, "wifi_enable_sta() failed with %s", esp_err_to_name(result));
-        return result;
+        ESP_LOGE(TAG, "STA mode missing");
+        return ESP_FAIL;
     }
 
-    if (sta_config.ssid.empty())
+    if (wifi_entry.ssid.empty())
     {
         ESP_LOGE(TAG, "SSID missing!");
         return ESP_FAIL;
     }
 
-    if (sta_config.ssid.size() > 32)
+    if (wifi_entry.ssid.size() > 32)
     {
-        ESP_LOGE(TAG, "SSID too long! (size=%zd)", sta_config.ssid.size());
+        ESP_LOGE(TAG, "SSID too long! (size=%zd)", wifi_entry.ssid.size());
         return ESP_FAIL;
     }
 
-    if (!sta_config.key.empty())
+    if (!wifi_entry.key.empty())
     {
-        if (sta_config.key.size() < 8)
+        if (wifi_entry.key.size() < 8)
         {
-            ESP_LOGE(TAG, "key too short! (size=%zd)", sta_config.key.size());
+            ESP_LOGE(TAG, "key too short! (size=%zd)", wifi_entry.key.size());
             return ESP_FAIL;
         }
 
-        if (sta_config.key.size() > 64)
+        if (wifi_entry.key.size() > 64)
         {
-            ESP_LOGE(TAG, "key too long! (size=%zd)", sta_config.key.size());
+            ESP_LOGE(TAG, "key too long! (size=%zd)", wifi_entry.key.size());
             return ESP_FAIL;
         }
     }
 
-    wifi_config_t conf = make_sta_config(sta_config.ssid, sta_config.key, config.sta.min_rssi, bssid, channel);
+    wifi_config_t conf = make_sta_config(wifi_entry.ssid, wifi_entry.key, sta_config.min_rssi, bssid, channel);
 
     wifi_config_t current_conf;
     if (const auto result = esp_wifi_get_config(WIFI_IF_STA, &current_conf); result != ESP_OK)
@@ -2172,21 +2242,21 @@ esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
         }
     }
 
-    if (const auto result = wifi_set_esp_interface_ip(ESP_IF_WIFI_STA, sta_config.static_ip); result != ESP_OK)
+    if (const auto result = wifi_set_esp_interface_ip(ESP_IF_WIFI_STA, wifi_entry.static_ip); result != ESP_OK)
     {
         ESP_LOGE(TAG, "wifi_set_esp_interface_ip() for STA failed with %s", esp_err_to_name(result));
         return result;
     }
 
-    last_sta_static_ip = sta_config.static_ip;
+    last_sta_static_ip = wifi_entry.static_ip;
 
-    if (const auto result = wifi_set_esp_interface_dns(ESP_IF_WIFI_STA, sta_config.static_dns); result != ESP_OK)
+    if (const auto result = wifi_set_esp_interface_dns(ESP_IF_WIFI_STA, wifi_entry.static_dns); result != ESP_OK)
     {
         ESP_LOGE(TAG, "wifi_set_esp_interface_dns() for STA failed with %s", esp_err_to_name(result));
         return result;
     }
 
-    last_sta_static_dns = sta_config.static_dns;
+    last_sta_static_dns = wifi_entry.static_dns;
 
     if (connect)
     {
@@ -2207,10 +2277,10 @@ esp_err_t wifi_sta_begin(const config &config, const wifi_entry &sta_config,
 
 esp_err_t wifi_sta_restart(const config &config)
 {
-    if (const auto result = wifi_enable_sta(true, config); result != ESP_OK)
+    if (!(get_wifi_mode() & WIFI_MODE_STA))
     {
-        ESP_LOGE(TAG, "wifi_enable_sta() failed with %s", esp_err_to_name(result));
-        return result;
+        ESP_LOGE(TAG, "STA mode missing");
+        return ESP_FAIL;
     }
 
     wifi_config_t current_conf;
@@ -2263,14 +2333,17 @@ esp_err_t wifi_sta_restart(const config &config)
     return ESP_OK;
 }
 
-esp_err_t wifi_sta_disconnect(const config &config, bool wifioff, bool eraseap)
+esp_err_t wifi_sta_disconnect(const config &config, bool eraseap)
 {
-    ESP_LOGI(TAG, "wifioff=%s eraseap=%s", wifioff?"true":"false", eraseap?"true":"false");
+    ESP_LOGI(TAG, "eraseap=%s", eraseap ? "true" : "false");
+
+    if (!(get_wifi_mode() & WIFI_MODE_STA))
+    {
+        ESP_LOGE(TAG, "mode STA not set");
+        return ESP_FAIL;
+    }
 
     wifi_config_t conf = make_sta_config({}, {}, 0, {}, 0);
-
-    if (!(wifi_get_mode() & WIFI_MODE_STA))
-        return ESP_FAIL;
 
     if (eraseap)
     {
@@ -2289,22 +2362,13 @@ esp_err_t wifi_sta_disconnect(const config &config, bool wifioff, bool eraseap)
         return result;
     }
 
-    if (wifioff)
-    {
-        if (const auto result = wifi_enable_sta(false, config); result != ESP_OK)
-        {
-            ESP_LOGE(TAG, "wifi_enable_sta() failed with %s", esp_err_to_name(result));
-            return result;
-        }
-    }
-
     return ESP_OK;
 }
 
-std::string calculateWifisChecksum(const config &config)
+std::string calculateWifisChecksum(const sta_config &sta_config)
 {
     std::string result;
-    for (const auto &wifi : config.sta.wifis)
+    for (const auto &wifi : sta_config.wifis)
     {
         result += wifi.ssid;
         result += ",";
@@ -2312,56 +2376,6 @@ std::string calculateWifisChecksum(const config &config)
         result += "|";
     }
     return result;
-}
-
-esp_err_t wifi_begin_scan(const config &config, bool show_hidden, bool passive, espchrono::milliseconds32 max_ms_per_chan, uint8_t channel)
-{
-    if (wifi_get_status_bits() & WIFI_SCANNING_BIT)
-    {
-        ESP_LOGE(TAG, "while scan was still running");
-        return ESP_FAIL;
-    }
-
-    scanTimeout = max_ms_per_chan * 20;
-
-    if (const auto result = wifi_enable_sta(true, config); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "wifi_enable_sta() failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    delete_scan_result();
-
-    wifi_scan_config_t scan_config;
-    scan_config.ssid = 0;
-    scan_config.bssid = 0;
-    scan_config.channel = channel;
-    scan_config.show_hidden = show_hidden;
-
-    if (passive)
-    {
-        scan_config.scan_type = WIFI_SCAN_TYPE_PASSIVE;
-        scan_config.scan_time.passive = espchrono::milliseconds32{max_ms_per_chan}.count();
-    }
-    else
-    {
-        scan_config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
-        scan_config.scan_time.active.min = 100;
-        scan_config.scan_time.active.max = espchrono::milliseconds32{max_ms_per_chan}.count();
-    }
-
-    if (const auto result = esp_wifi_scan_start(&scan_config, false) != ESP_OK)
-    {
-        ESP_LOGE(TAG, "esp_wifi_scan_start() failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
-    scanStarted = espchrono::millis_clock::now();
-
-    wifi_clear_status_bits(WIFI_SCAN_DONE_BIT);
-    wifi_set_status_bits(WIFI_SCANNING_BIT);
-
-    return ESP_OK;
 }
 
 void setWifiState(WiFiState newWifiState)
@@ -2373,7 +2387,7 @@ void setWifiState(WiFiState newWifiState)
     }
 }
 
-bool buildConnectPlan(const config &config)
+bool buildConnectPlan(const config &config, const sta_config &sta_config)
 {
     const auto &scanResult = get_scan_result();
     if (!scanResult)
@@ -2382,31 +2396,31 @@ bool buildConnectPlan(const config &config)
         return false;
     }
 
-    return buildConnectPlan(config, *scanResult);
+    return buildConnectPlan(config, sta_config, *scanResult);
 }
 
-bool buildConnectPlan(const config &config, const scan_result &scanResult)
+bool buildConnectPlan(const config &config, const sta_config &sta_config, const scan_result &scanResult)
 {
     _pastConnectPlan.clear();
-    _currentConnectPlanEntry = {};
+    _currentConnectPlanEntry = mac_t{};
     _connectPlan.clear();
 
     for (const auto &entry : scanResult.entries)
     {
         std::string_view scanSSID{(const char *)entry.ssid};
 
-        const auto iter = std::find_if(std::begin(config.sta.wifis), std::end(config.sta.wifis),
+        const auto iter = std::find_if(std::begin(sta_config.wifis), std::end(sta_config.wifis),
                                        [&scanSSID](const auto &entry){ return cpputils::stringEqualsIgnoreCase(entry.ssid, scanSSID); });
-        if (iter != std::end(config.sta.wifis))
+        if (iter != std::end(sta_config.wifis))
         {
             _connectPlan.push_back(mac_t{entry.bssid});
         }
     }
 
-    return nextConnectPlanItem(config, scanResult);
+    return nextConnectPlanItem(config, sta_config, scanResult);
 }
 
-bool nextConnectPlanItem(const config &config)
+bool nextConnectPlanItem(const config &config, const sta_config &sta_config)
 {
     const auto &scanResult = get_scan_result();
     if (!scanResult)
@@ -2415,10 +2429,10 @@ bool nextConnectPlanItem(const config &config)
         return false;
     }
 
-    return nextConnectPlanItem(config, *scanResult);
+    return nextConnectPlanItem(config, sta_config, *scanResult);
 }
 
-bool nextConnectPlanItem(const config &config, const scan_result &scanResult)
+bool nextConnectPlanItem(const config &config, const sta_config &sta_config, const scan_result &scanResult)
 {
     if (_connectPlan.empty())
     {
@@ -2438,7 +2452,7 @@ bool nextConnectPlanItem(const config &config, const scan_result &scanResult)
 
         {
             std::string configuredSsids;
-            for (const auto &config : config.sta.wifis)
+            for (const auto &config : sta_config.wifis)
             {
                 if (!configuredSsids.empty())
                     configuredSsids += ", ";
@@ -2464,16 +2478,16 @@ bool nextConnectPlanItem(const config &config, const scan_result &scanResult)
     if (scanResultIter == std::end(scanResult.entries))
     {
         ESP_LOGW(TAG, "could not find bssid from connect plan in scan result %s", toString(_currentConnectPlanEntry).c_str());
-        return nextConnectPlanItem(config, scanResult);
+        return nextConnectPlanItem(config, sta_config, scanResult);
     }
 
-    const auto configIter = std::find_if(std::begin(config.sta.wifis), std::end(config.sta.wifis),
+    const auto configIter = std::find_if(std::begin(sta_config.wifis), std::end(sta_config.wifis),
                                          [ssid=scanResultIter->ssid](const wifi_entry &entry){ return entry.ssid == (const char *)ssid; });
 
-    if (configIter == std::end(config.sta.wifis))
+    if (configIter == std::end(sta_config.wifis))
     {
         ESP_LOGW(TAG, "could not find config for ssid %s", scanResultIter->ssid);
-        return nextConnectPlanItem(config, scanResult);
+        return nextConnectPlanItem(config, sta_config, scanResult);
     }
 
     ESP_LOGI(TAG, "connecting to %s (auth=%s, key=%.*s, channel=%i, rssi=%i, bssid=%s)",
@@ -2488,7 +2502,7 @@ bool nextConnectPlanItem(const config &config, const scan_result &scanResult)
 
     ESP_LOGI(TAG, "resetting wifi connect fail counter");
     _wifiConnectFailCounter = 0;
-    if (const auto result = wifi_sta_begin(config, *configIter, scanResultIter->primary, mac_t{scanResultIter->bssid}); result != ESP_OK)
+    if (const auto result = wifi_sta_begin(config, sta_config, *configIter, scanResultIter->primary, mac_t{scanResultIter->bssid}); result != ESP_OK)
         ESP_LOGE(TAG, "wifi_sta_begin() failed with %s", esp_err_to_name(result));
     setWifiState(WiFiState::Connecting);
 
@@ -2519,12 +2533,6 @@ void handleWifiEvents(const config &config, TickType_t xTicksToWait)
 esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
                     int mdio, eth_phy_type_t type, eth_clock_mode_t clock_mode)
 {
-    if (const auto result = wifi_tcpip_init(config); result != ESP_OK)
-    {
-        ESP_LOGE(TAG, "wifi_tcpip_init() failed with %s", esp_err_to_name(result));
-        return result;
-    }
-
     eth_clock_mode = clock_mode;
 
     if (const auto result = tcpip_adapter_set_default_eth_handlers(); result != ESP_OK)
@@ -2677,7 +2685,7 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
 
     eth_initialized = true;
 
-    if (config.eth.enabled)
+    if (config.eth)
     {
         if (const auto result = esp_eth_start(eth_handle); result != ESP_OK)
         {
@@ -2687,22 +2695,22 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
 
         eth_started = true;
 
-        if (const auto result = wifi_set_esp_interface_ip(ESP_IF_ETH, config.eth.static_ip); result != ESP_OK)
+        if (const auto result = wifi_set_esp_interface_ip(ESP_IF_ETH, config.eth->static_ip); result != ESP_OK)
         {
             ESP_LOGE(TAG, "wifi_set_esp_interface_ip() for ETH failed with %s", esp_err_to_name(result));
             //return result;
         }
         else
         {
-            last_eth_static_ip = config.eth.static_ip;
+            last_eth_static_ip = config.eth->static_ip;
 
-            if (const auto result = wifi_set_esp_interface_dns(ESP_IF_ETH, config.eth.static_dns); result != ESP_OK)
+            if (const auto result = wifi_set_esp_interface_dns(ESP_IF_ETH, config.eth->static_dns); result != ESP_OK)
             {
                 ESP_LOGE(TAG, "wifi_set_esp_interface_dns() for ETH failed with %s", esp_err_to_name(result));
                 //return result;
             }
             else
-                last_eth_static_dns = config.eth.static_dns;
+                last_eth_static_dns = config.eth->static_dns;
         }
     }
 

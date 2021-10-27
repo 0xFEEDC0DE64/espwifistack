@@ -8,9 +8,7 @@
 
 // 3rdparty lib includes
 #include <fmt/core.h>
-
-// local includes
-#include "futurecpp.h"
+#include <futurecpp.h>
 
 namespace wifi_stack {
 namespace {

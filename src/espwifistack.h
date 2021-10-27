@@ -4,6 +4,7 @@
 
 // system includes
 #include <string>
+#include <string_view>
 #include <vector>
 #include <optional>
 
@@ -14,13 +15,13 @@
 
 // 3rdparty lib includes
 #include <tl/expected.hpp>
+#include <espchrono.h>
+#include <cppsignal.h>
 
 // local includes
 #include "espwifistackconfig.h"
 #include "espwifistackenums.h"
 #include "espwifiutils.h"
-#include "espchrono.h"
-#include "cppsignal.h"
 
 namespace wifi_stack {
 struct scan_result
@@ -51,11 +52,13 @@ extern const std::vector<mac_t> &pastConnectPlan;
 extern const mac_t &currentConnectPlanEntry;
 extern const std::vector<mac_t> &connectPlan;
 
+wifi_mode_t get_wifi_mode();
+
 //! Tells the status of the STA interface (connected, ...)
 WiFiStaStatus get_sta_status();
 
 //! Tries to begin a new scan, if succeeds clears the old scan result
-esp_err_t begin_scan(const config &config);
+tl::expected<void, std::string> begin_scan(const sta_config &sta_config);
 
 //! Tells the status of the currently running scan (finished, ...)
 WiFiScanStatus get_scan_status();
@@ -67,11 +70,16 @@ const std::optional<scan_result> &get_scan_result();
 //! Clears the scan result
 void delete_scan_result();
 
+//! Util wrappers
+using mac_or_error = tl::expected<mac_t, std::string>;
 tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info();
-tl::expected<wifi_stack::mac_t, std::string> get_default_mac_addr();
-tl::expected<wifi_stack::mac_t, std::string> get_base_mac_addr();
-tl::expected<void, std::string> set_base_mac_addr(wifi_stack::mac_t mac_addr);
+mac_or_error get_default_mac_addr();
+mac_or_error get_custom_mac_addr();
+mac_or_error get_base_mac_addr();
+tl::expected<void, std::string> set_base_mac_addr(mac_t mac_addr);
 tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_t tcpip_if);
+tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_interface_t interf);
+tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_netif_t *esp_netif);
 
 #ifdef CONFIG_ETH_ENABLED
 esp_eth_handle_t getEthHandle();
