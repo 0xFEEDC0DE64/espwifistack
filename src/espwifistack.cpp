@@ -847,6 +847,18 @@ tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info()
     }
 }
 
+mac_or_error get_mac_addr(wifi_interface_t ifx)
+{
+    wifi_stack::mac_t mac;
+    if (const auto result = esp_wifi_get_mac(ifx, std::begin(mac)); result == ESP_OK)
+        return mac;
+    else
+    {
+        ESP_LOGW(TAG, "esp_wifi_get_mac() failed with %s", esp_err_to_name(result));
+        return tl::make_unexpected(fmt::format("esp_wifi_get_mac() failed with {}", esp_err_to_name(result)));
+    }
+}
+
 mac_or_error get_default_mac_addr()
 {
     static const mac_or_error cachedResult = []() -> mac_or_error {

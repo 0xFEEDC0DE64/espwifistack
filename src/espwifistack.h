@@ -73,6 +73,7 @@ void delete_scan_result();
 //! Util wrappers
 using mac_or_error = tl::expected<mac_t, std::string>;
 tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info();
+mac_or_error get_mac_addr(wifi_interface_t ifx);
 mac_or_error get_default_mac_addr();
 mac_or_error get_custom_mac_addr();
 mac_or_error get_base_mac_addr();
