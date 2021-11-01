@@ -657,7 +657,7 @@ void update(const config &config)
                 setWifiState(WiFiState::None);
         }
 
-        if (!cpputils::is_in(get_sta_status(), WiFiStaStatus::IDLE_STATUS, WiFiStaStatus::DISCONNECTED) ||
+        if (!cpputils::is_in(get_sta_status(), WiFiStaStatus::NO_SHIELD, WiFiStaStatus::IDLE_STATUS, WiFiStaStatus::DISCONNECTED) ||
             !cpputils::is_in(_wifiState, WiFiState::None, WiFiState::Scanning))
         {
             ESP_LOGI(TAG, "disconnecting, because wifi_enabled is false");
