@@ -216,6 +216,7 @@ struct config
 #ifdef CONFIG_ETH_ENABLED
     std::optional<eth_config> eth;
 #endif
+    std::optional<wifi_country_t> country;
 
     friend bool operator==(const config &left, const config &right)
     {

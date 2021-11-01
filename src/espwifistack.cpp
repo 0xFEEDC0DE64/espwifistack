@@ -2055,6 +2055,10 @@ esp_err_t wifi_sync_mode(const config &config)
             if (const auto result = esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_LR); result != ESP_OK)
                 ESP_LOGE(TAG, "esp_wifi_set_protocol() for AP long range failed with %s", esp_err_to_name(result));
 
+        if (config.country)
+            if (const auto result = esp_wifi_set_country(&*config.country); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_wifi_set_country_code() failed with %s", esp_err_to_name(result));
+
         if (const auto result = wifi_start(); result != ESP_OK)
         {
             ESP_LOGE(TAG, "wifi_start() failed with %s", esp_err_to_name(result));
