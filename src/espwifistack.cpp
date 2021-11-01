@@ -1281,7 +1281,7 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
     case WifiEventId::WIFI_STA_CONNECTED:
         set_sta_status(WiFiStaStatus::IDLE_STATUS);
         wifi_set_status_bits(STA_CONNECTED_BIT);
-        //esp_netif_create_ip6_linklocal(esp_netifs[ESP_IF_WIFI_STA]);
+        esp_netif_create_ip6_linklocal(esp_netifs[ESP_IF_WIFI_STA]);
         break;
     case WifiEventId::WIFI_STA_DISCONNECTED:
     {
