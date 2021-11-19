@@ -1501,7 +1501,7 @@ void wifi_event_cb(void* arg, esp_event_base_t event_base, int32_t event_id, voi
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
-        ESP_LOGI(TAG, "event_base=%s event_id=%s", event_base, "WIFI_EVENT_STA_CONNECTED");
+        ESP_LOGI(TAG, "event_base=%s event_id=%s", event_base, "WIFI_EVENT_STA_DISCONNECTED");
 
         const wifi_event_sta_disconnected_t &event = *(const wifi_event_sta_disconnected_t *)event_data;
         ESP_LOGI(TAG, "STA Disconnected: SSID: %s, BSSID: " MACSTR ", Reason: %u", event.ssid, MAC2STR(event.bssid), event.reason);

@@ -251,7 +251,7 @@ std::string toString(ip_addr_t val)
     case IPADDR_TYPE_V4: return toString(val.u_addr.ip4);
     case IPADDR_TYPE_V6: return toString(val.u_addr.ip6);
     default:
-        ESP_LOGW(TAG, "Unknown ipv%hhu", val.type);
+        //ESP_LOGW(TAG, "Unknown ipv%hhu", val.type);
         return fmt::format("Unknown ipv{}", val.type);
     }
 }
