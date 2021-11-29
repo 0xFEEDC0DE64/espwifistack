@@ -131,6 +131,11 @@ struct sta_scan_config
     }
 };
 
+struct dual_ant_config
+{
+
+};
+
 struct sta_config
 {
     std::string hostname;
@@ -211,6 +216,7 @@ struct eth_config
 struct config
 {
     std::optional<mac_t> base_mac_override;
+    std::optional<dual_ant_config> dual_ant;
     std::optional<sta_config> sta;
     std::optional<ap_config> ap;
 #ifdef CONFIG_ETH_ENABLED

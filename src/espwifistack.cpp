@@ -335,6 +335,34 @@ void init(const config &config)
             ESP_LOGE(TAG, "wifi_set_ap_config() failed with %s", esp_err_to_name(result));
     }
 
+    if (config.dual_ant)
+    {
+        {
+            constexpr const wifi_ant_gpio_config_t config {
+                .gpio_cfg {
+                    wifi_ant_gpio_t { .gpio_select = 1, .gpio_num = 2 },
+                    wifi_ant_gpio_t { .gpio_select = 1, .gpio_num = 25 }
+                }
+            };
+
+            if (const auto result = esp_wifi_set_ant_gpio(&config); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_wifi_set_ant_gpio() failed with %s", esp_err_to_name(result));
+        }
+
+        {
+            wifi_ant_config_t config {
+                .rx_ant_mode = WIFI_ANT_MODE_AUTO,
+                .rx_ant_default = WIFI_ANT_ANT0,
+                .tx_ant_mode = WIFI_ANT_MODE_AUTO,
+                .enabled_ant0 = 0b0001,
+                .enabled_ant1 = 0b0010
+            };
+
+            if (const auto result = esp_wifi_set_ant(&config); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_wifi_set_ant() failed with %s", esp_err_to_name(result));
+        }
+    }
+
     last_ap_config = config.ap;
 
     _wifiState = WiFiState::None;
