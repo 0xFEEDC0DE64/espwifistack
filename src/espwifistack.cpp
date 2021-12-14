@@ -118,6 +118,10 @@ std::vector<mac_t> _pastConnectPlan;
 mac_t _currentConnectPlanEntry;
 std::vector<mac_t> _connectPlan;
 
+#ifdef CONFIG_ETH_ENABLED
+std::optional<tl::expected<void, std::string>> _eth_init_status;
+#endif
+
 } // namespace
 
 const WiFiState &wifiStateMachineState{_wifiState};
@@ -129,6 +133,10 @@ const std::string &last_sta_error_message{_last_sta_error_message};
 const std::vector<mac_t> &pastConnectPlan{_pastConnectPlan};
 const mac_t &currentConnectPlanEntry{_currentConnectPlanEntry};
 const std::vector<mac_t> &connectPlan{_connectPlan};
+
+#ifdef CONFIG_ETH_ENABLED
+const std::optional<tl::expected<void, std::string>> &eth_init_status{_eth_init_status};
+#endif
 
 namespace {
 #define WifiEventIdValues(x) \
@@ -289,8 +297,8 @@ bool nextConnectPlanItem(const config &config, const sta_config &sta_config);
 bool nextConnectPlanItem(const config &config, const sta_config &sta_config, const scan_result &scanResult);
 void handleWifiEvents(const config &config, TickType_t xTicksToWait);
 #ifdef CONFIG_ETH_ENABLED
-esp_err_t eth_begin(const config &config, uint8_t phy_addr = ETH_PHY_ADDR, int power = ETH_PHY_POWER, int mdc = ETH_PHY_MDC,
-                    int mdio = ETH_PHY_MDIO, eth_phy_type_t type = ETH_PHY_TYPE, eth_clock_mode_t clk_mode = ETH_CLK_MODE);
+tl::expected<void, std::string> eth_begin(const config &config, uint8_t phy_addr = ETH_PHY_ADDR, int power = ETH_PHY_POWER, int mdc = ETH_PHY_MDC,
+                                          int mdio = ETH_PHY_MDIO, eth_phy_type_t type = ETH_PHY_TYPE, eth_clock_mode_t clk_mode = ETH_CLK_MODE);
 esp_err_t eth_on_lowlevel_init_done(esp_eth_handle_t eth_handle);
 #if CONFIG_ETH_RMII_CLK_INPUT
 void emac_config_apll_clock();
@@ -322,8 +330,12 @@ void init(const config &config)
         ESP_LOGE(TAG, "wifi_sync_mode() failed with %s", esp_err_to_name(result));
 
 #ifdef CONFIG_ETH_ENABLED
-    if (const auto result = eth_begin(config); result != ESP_OK)
-        ESP_LOGE(TAG, "eth_begin() failed with %s", esp_err_to_name(result));
+    {
+        auto result = eth_begin(config);
+        if (!result)
+            ESP_LOGE(TAG, "eth_begin() failed with %.*s", result.error().size(), result.error().data());
+        _eth_init_status = std::move(result);
+    }
 #endif
 
     if (config.ap)
@@ -2574,15 +2586,16 @@ void handleWifiEvents(const config &config, TickType_t xTicksToWait)
 }
 
 #ifdef CONFIG_ETH_ENABLED
-esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
-                    int mdio, eth_phy_type_t type, eth_clock_mode_t clock_mode)
+tl::expected<void, std::string> eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
+                                int mdio, eth_phy_type_t type, eth_clock_mode_t clock_mode)
 {
     eth_clock_mode = clock_mode;
 
     if (const auto result = tcpip_adapter_set_default_eth_handlers(); result != ESP_OK)
     {
-        ESP_LOGE(TAG, "tcpip_adapter_set_default_eth_handlers() failed with %s", esp_err_to_name(result));
-        return result;
+        auto msg = fmt::format("tcpip_adapter_set_default_eth_handlers() failed with {}", esp_err_to_name(result));
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
 
     esp_netif_config_t cfg ESP_NETIF_DEFAULT_ETH();
@@ -2590,14 +2603,16 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
     esp_netifs[ESP_IF_ETH] = esp_netif_new(&cfg);
     if (!esp_netifs[ESP_IF_ETH])
     {
-        ESP_LOGE(TAG, "esp_netif_new() failed");
-        return ESP_FAIL;
+        auto msg = std::string{"esp_netif_new() failed"};
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
 
     if (const auto result = esp_eth_set_default_handlers(esp_netifs[ESP_IF_ETH]); result != ESP_OK)
     {
-        ESP_LOGE(TAG, "esp_eth_set_default_handlers() failed with %s", esp_err_to_name(result));
-        return result;
+        auto msg = fmt::format("esp_eth_set_default_handlers() failed with {}", esp_err_to_name(result));
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
 
     esp_eth_mac_t *eth_mac{};
@@ -2606,8 +2621,9 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
     if (type == ETH_PHY_DM9051)
     {
         //todo
-        ESP_LOGE(TAG, "ETH_PHY_DM9051 not implemented");
-        return ESP_FAIL;
+        auto msg = std::string{"ETH_PHY_DM9051 not implemented"};
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
     else
     {
@@ -2621,8 +2637,9 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
         eth_mac = esp_eth_mac_new_esp32(&mac_config);
         if (!eth_mac)
         {
-            ESP_LOGE(TAG, "esp_eth_mac_new_esp32() failed");
-            return ESP_FAIL;
+            auto msg = std::string{"esp_eth_mac_new_esp32() failed"};
+            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+            return tl::make_unexpected(std::move(msg));
         }
 #endif
 #if CONFIG_ETH_SPI_ETHERNET_DM9051
@@ -2641,58 +2658,71 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
         eth_phy = esp_eth_phy_new_lan8720(&phy_config);
         if (!eth_phy)
         {
-            ESP_LOGE(TAG, "esp_eth_phy_new_lan8720() failed");
-            return ESP_FAIL;
+            auto msg = std::string{"esp_eth_phy_new_lan8720() failed"};
+            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+            return tl::make_unexpected(std::move(msg));
         }
         break;
     case ETH_PHY_TLK110:
         eth_phy = esp_eth_phy_new_ip101(&phy_config);
         if (!eth_phy)
         {
-            ESP_LOGE(TAG, "esp_eth_phy_new_ip101() failed");
-            return ESP_FAIL;
+            auto msg = std::string{"esp_eth_phy_new_ip101() failed"};
+            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+            return tl::make_unexpected(std::move(msg));
         }
         break;
     case ETH_PHY_RTL8201:
         eth_phy = esp_eth_phy_new_rtl8201(&phy_config);
         if (!eth_phy)
         {
-            ESP_LOGE(TAG, "esp_eth_phy_new_rtl8201() failed");
-            return ESP_FAIL;
+            auto msg = std::string{"esp_eth_phy_new_rtl8201() failed"};
+            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+            return tl::make_unexpected(std::move(msg));
         }
         break;
     case ETH_PHY_DP83848:
         eth_phy = esp_eth_phy_new_dp83848(&phy_config);
         if (!eth_phy)
         {
-            ESP_LOGE(TAG, "esp_eth_phy_new_dp83848() failed");
-            return ESP_FAIL;
+            auto msg = std::string{"esp_eth_phy_new_dp83848() failed"};
+            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+            return tl::make_unexpected(std::move(msg));
         }
         break;
 #if CONFIG_ETH_SPI_ETHERNET_DM9051
     case ETH_PHY_DM9051:
         eth_phy = esp_eth_phy_new_dm9051(&phy_config);
+        if (!eth_phy)
+        {
+            auto msg = std::string{"esp_eth_phy_new_dm9051() failed"};
+            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+            return tl::make_unexpected(std::move(msg));
+        }
         break;
 #endif
     case ETH_PHY_KSZ8041:
         eth_phy = esp_eth_phy_new_ksz8041(&phy_config);
         if (!eth_phy)
         {
-            ESP_LOGE(TAG, "esp_eth_phy_new_ksz8041() failed");
-            return ESP_FAIL;
+            auto msg = std::string{"esp_eth_phy_new_ksz8041() failed"};
+            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+            return tl::make_unexpected(std::move(msg));
         }
         break;
 //    case ETH_PHY_KSZ8081:
 //        eth_phy = esp_eth_phy_new_ksz8081(&phy_config);
 //        if (!eth_phy)
 //        {
-//            ESP_LOGE(TAG, "esp_eth_phy_new_ksz8081() failed");
-//            return ESP_FAIL;
+//            auto msg = std::string{"esp_eth_phy_new_ksz8081() failed"};
+//            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+//            return tl::make_unexpected(std::move(msg));
 //        }
 //        break;
     default:
-        ESP_LOGE(TAG, "unknown type %i", type);
-        return ESP_FAIL;
+        auto msg = fmt::format("unknown type {}", type);
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
 
     eth_handle = {};
@@ -2703,28 +2733,32 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
 
     if (const auto result = esp_eth_driver_install(&eth_config, &eth_handle); result != ESP_OK)
     {
-        ESP_LOGE(TAG, "esp_eth_driver_install() failed with %s", esp_err_to_name(result));
-        return result;
+        auto msg = fmt::format("esp_eth_driver_install() failed with {}", esp_err_to_name(result));
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
 
     if (!eth_handle)
     {
-        ESP_LOGE(TAG, "esp_eth_driver_install() invalid eth_handle");
-        return ESP_FAIL;
+        auto msg = std::string{"esp_eth_driver_install() invalid eth_handle"};
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
 
     /* attach Ethernet driver to TCP/IP stack */
     auto ptr = esp_eth_new_netif_glue(eth_handle);
     if (!ptr)
     {
-        ESP_LOGE(TAG, "esp_eth_new_netif_glue() failed");
-        return ESP_FAIL;
+        auto msg = std::string{"esp_eth_new_netif_glue() failed"};
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
 
     if (const auto result = esp_netif_attach(esp_netifs[ESP_IF_ETH], ptr); result != ESP_OK)
     {
-        ESP_LOGE(TAG, "esp_eth_driver_install() failed with %s", esp_err_to_name(result));
-        return result;
+        auto msg = fmt::format("esp_netif_attach() failed with {}", esp_err_to_name(result));
+        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+        return tl::make_unexpected(std::move(msg));
     }
 
     eth_initialized = true;
@@ -2733,8 +2767,9 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
     {
         if (const auto result = esp_eth_start(eth_handle); result != ESP_OK)
         {
-            ESP_LOGE(TAG, "esp_eth_start() failed with %s", esp_err_to_name(result));
-            return result;
+            auto msg = fmt::format("esp_eth_start() failed with {}", esp_err_to_name(result));
+            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+            return tl::make_unexpected(std::move(msg));
         }
 
         eth_started = true;
@@ -2758,7 +2793,7 @@ esp_err_t eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
         }
     }
 
-    return ESP_OK;
+    return {};
 }
 
 esp_err_t eth_on_lowlevel_init_done(esp_eth_handle_t eth_handle)

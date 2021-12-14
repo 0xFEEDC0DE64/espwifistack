@@ -52,6 +52,10 @@ extern const std::vector<mac_t> &pastConnectPlan;
 extern const mac_t &currentConnectPlanEntry;
 extern const std::vector<mac_t> &connectPlan;
 
+#ifdef CONFIG_ETH_ENABLED
+extern const std::optional<tl::expected<void, std::string>> &eth_init_status;
+#endif
+
 wifi_mode_t get_wifi_mode();
 
 //! Tells the status of the STA interface (connected, ...)
