@@ -2580,12 +2580,12 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
         return tl::make_unexpected(std::move(msg));
     }
 
-    if (const auto result = esp_eth_set_default_handlers(esp_netifs[ESP_IF_ETH]); result != ESP_OK)
-    {
-        auto msg = fmt::format("esp_eth_set_default_handlers() failed with {}", esp_err_to_name(result));
-        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
-    }
+//    if (const auto result = esp_eth_set_default_handlers(esp_netifs[ESP_IF_ETH]); result != ESP_OK)
+//    {
+//        auto msg = fmt::format("esp_eth_set_default_handlers() failed with {}", esp_err_to_name(result));
+//        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
+//        return tl::make_unexpected(std::move(msg));
+//    }
 
     esp_eth_mac_t *eth_mac{};
 
@@ -2626,8 +2626,8 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
 
     switch (eth.type)
     {
-    case ETH_PHY_LAN8720:
-        eth_phy = esp_eth_phy_new_lan8720(&phy_config);
+    case ETH_PHY_LAN87XX:
+        eth_phy = esp_eth_phy_new_lan87xx(&phy_config);
         if (!eth_phy)
         {
             auto msg = std::string{"esp_eth_phy_new_lan8720() failed"};
@@ -2673,8 +2673,8 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
         }
         break;
 #endif
-    case ETH_PHY_KSZ8041:
-        eth_phy = esp_eth_phy_new_ksz8041(&phy_config);
+    case ETH_PHY_KSZ80XX:
+        eth_phy = esp_eth_phy_new_ksz80xx(&phy_config);
         if (!eth_phy)
         {
             auto msg = std::string{"esp_eth_phy_new_ksz8041() failed"};
@@ -2682,15 +2682,6 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
             return tl::make_unexpected(std::move(msg));
         }
         break;
-//    case ETH_PHY_KSZ8081:
-//        eth_phy = esp_eth_phy_new_ksz8081(&phy_config);
-//        if (!eth_phy)
-//        {
-//            auto msg = std::string{"esp_eth_phy_new_ksz8081() failed"};
-//            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-//            return tl::make_unexpected(std::move(msg));
-//        }
-//        break;
     default:
         auto msg = fmt::format("unknown type {}", eth.type);
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
