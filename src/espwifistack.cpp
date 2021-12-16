@@ -224,38 +224,11 @@ const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAV
 #define reason2str(r) ((r>176)?system_event_reasons[r-176]:system_event_reasons[r-1])
 
 #ifdef CONFIG_ETH_ENABLED
-#ifndef ETH_PHY_ADDR
-#define ETH_PHY_ADDR 0
-#endif
-
-#ifndef ETH_PHY_TYPE
-#define ETH_PHY_TYPE ETH_PHY_LAN8720
-#endif
-
-#ifndef ETH_PHY_POWER
-#define ETH_PHY_POWER -1
-#endif
-
-#ifndef ETH_PHY_MDC
-#define ETH_PHY_MDC 23
-#endif
-
-#ifndef ETH_PHY_MDIO
-#define ETH_PHY_MDIO 18
-#endif
-
-#ifndef ETH_CLK_MODE
-#define ETH_CLK_MODE ETH_CLOCK_GPIO0_IN
-#endif
-
-enum eth_clock_mode_t { ETH_CLOCK_GPIO0_IN, ETH_CLOCK_GPIO0_OUT, ETH_CLOCK_GPIO16_OUT, ETH_CLOCK_GPIO17_OUT };
-
-enum eth_phy_type_t { ETH_PHY_LAN8720, ETH_PHY_TLK110, ETH_PHY_RTL8201, ETH_PHY_DP83848, ETH_PHY_DM9051, ETH_PHY_KSZ8041, /* ETH_PHY_KSZ8081, */ ETH_PHY_MAX };
-#define ETH_PHY_IP101 ETH_PHY_TLK110
+//#define ETH_PHY_IP101 ETH_PHY_TLK110
 
 bool eth_initialized{};
 bool eth_started{};
-eth_clock_mode_t eth_clock_mode{ETH_CLK_MODE};
+eth_clock_mode_t eth_clock_mode{};
 esp_eth_handle_t eth_handle{};
 #endif
 
@@ -297,8 +270,7 @@ bool nextConnectPlanItem(const config &config, const sta_config &sta_config);
 bool nextConnectPlanItem(const config &config, const sta_config &sta_config, const scan_result &scanResult);
 void handleWifiEvents(const config &config, TickType_t xTicksToWait);
 #ifdef CONFIG_ETH_ENABLED
-tl::expected<void, std::string> eth_begin(const config &config, uint8_t phy_addr = ETH_PHY_ADDR, int power = ETH_PHY_POWER, int mdc = ETH_PHY_MDC,
-                                          int mdio = ETH_PHY_MDIO, eth_phy_type_t type = ETH_PHY_TYPE, eth_clock_mode_t clk_mode = ETH_CLK_MODE);
+tl::expected<void, std::string> eth_begin(const config &config, const eth_config &eth);
 esp_err_t eth_on_lowlevel_init_done(esp_eth_handle_t eth_handle);
 #if CONFIG_ETH_RMII_CLK_INPUT
 void emac_config_apll_clock();
@@ -330,8 +302,9 @@ void init(const config &config)
         ESP_LOGE(TAG, "wifi_sync_mode() failed with %s", esp_err_to_name(result));
 
 #ifdef CONFIG_ETH_ENABLED
+    if (config.eth)
     {
-        auto result = eth_begin(config);
+        auto result = eth_begin(config, *config.eth);
         if (!result)
             ESP_LOGE(TAG, "eth_begin() failed with %.*s", result.error().size(), result.error().data());
         _eth_init_status = std::move(result);
@@ -2586,10 +2559,9 @@ void handleWifiEvents(const config &config, TickType_t xTicksToWait)
 }
 
 #ifdef CONFIG_ETH_ENABLED
-tl::expected<void, std::string> eth_begin(const config &config, uint8_t phy_addr, int power, int mdc,
-                                int mdio, eth_phy_type_t type, eth_clock_mode_t clock_mode)
+tl::expected<void, std::string> eth_begin(const config &config, const eth_config &eth)
 {
-    eth_clock_mode = clock_mode;
+    eth_clock_mode = eth.clk_mode;
 
     if (const auto result = tcpip_adapter_set_default_eth_handlers(); result != ESP_OK)
     {
@@ -2630,8 +2602,8 @@ tl::expected<void, std::string> eth_begin(const config &config, uint8_t phy_addr
 #endif
 #if CONFIG_ETH_USE_ESP32_EMAC
         eth_mac_config_t mac_config ETH_MAC_DEFAULT_CONFIG();
-        mac_config.smi_mdc_gpio_num = mdc;
-        mac_config.smi_mdio_gpio_num = mdio;
+        mac_config.smi_mdc_gpio_num = eth.mdc;
+        mac_config.smi_mdio_gpio_num = eth.mdio;
         mac_config.sw_reset_timeout_ms = 1000;
 
         eth_mac = esp_eth_mac_new_esp32(&mac_config);
@@ -2647,12 +2619,12 @@ tl::expected<void, std::string> eth_begin(const config &config, uint8_t phy_addr
 #endif
 
     eth_phy_config_t phy_config ETH_PHY_DEFAULT_CONFIG();
-    phy_config.phy_addr = phy_addr;
-    phy_config.reset_gpio_num = power;
+    phy_config.phy_addr = eth.phy_addr;
+    phy_config.reset_gpio_num = eth.power;
 
     esp_eth_phy_t *eth_phy{};
 
-    switch (type)
+    switch (eth.type)
     {
     case ETH_PHY_LAN8720:
         eth_phy = esp_eth_phy_new_lan8720(&phy_config);
@@ -2720,7 +2692,7 @@ tl::expected<void, std::string> eth_begin(const config &config, uint8_t phy_addr
 //        }
 //        break;
     default:
-        auto msg = fmt::format("unknown type {}", type);
+        auto msg = fmt::format("unknown type {}", eth.type);
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
         return tl::make_unexpected(std::move(msg));
     }
