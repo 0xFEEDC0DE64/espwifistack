@@ -12,6 +12,7 @@
 
 // esp-idf includes
 #include <esp_log.h>
+#include <esp_debug_helpers.h>
 #include <dhcpserver/dhcpserver_options.h>
 #include <lwip/dns.h>
 #if LWIP_IPV6 && LWIP_IPV6_DHCP6_STATELESS
@@ -94,6 +95,18 @@ constexpr auto WIFI_DNS_DONE_BIT = BIT14;
 // generic
 cpputils::DelayedConstruction<espcpputils::queue> wifi_event_queue;
 cpputils::DelayedConstruction<espcpputils::event_group> wifi_event_group;
+bool defaultEventLoopCreated{};
+bool wifiEventRegistered{};
+bool ipEventRegistered{};
+#ifdef SMARTCONFIG
+bool scEventRegistered{};
+#endif
+#ifdef CONFIG_ETH_ENABLED
+bool ethEventRegistered{};
+#endif
+#ifdef PROVISIONING
+bool wifiProvEventRegistered{};
+#endif
 } // namespace
 
 esp_netif_t* esp_netifs[ESP_IF_MAX] = {NULL, NULL, NULL};
@@ -1474,8 +1487,6 @@ esp_err_t wifi_post_event(std::unique_ptr<const WifiEvent> event)
 
 void wifi_event_cb(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
-    ESP_LOGI(TAG, "event_base=%s event_id=%i", event_base, event_id);
-
     auto wifi_event = std::make_unique<WifiEvent>();
     wifi_event->event_id = WifiEventId::MAX;
 
@@ -1796,6 +1807,8 @@ void wifi_event_cb(void* arg, esp_event_base_t event_base, int32_t event_id, voi
         wifi_event->event_id = WifiEventId::PROV_CRED_SUCCESS;
     }
 #endif
+    else
+        ESP_LOGW(TAG, "event_base=%s event_id=%i", event_base, event_id);
 
     if (wifi_event->event_id < WifiEventId::MAX)
         wifi_post_event(std::move(wifi_event));
@@ -1827,46 +1840,69 @@ esp_err_t wifi_start_network_event_task(const config &config)
         }
     }
 
-    if (const auto result = esp_event_loop_create_default(); result != ESP_OK)
+    if (!defaultEventLoopCreated)
     {
-        ESP_LOGE(TAG, "esp_event_loop_create_default() failed with %s", esp_err_to_name(result));
-        if (result != ESP_ERR_INVALID_STATE)
+        if (const auto result = esp_event_loop_create_default(); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "esp_event_loop_create_default() failed with %s", esp_err_to_name(result));
             return result;
+        }
+        defaultEventLoopCreated = true;
     }
 
-    if (const auto result = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+    if (!wifiEventRegistered)
     {
-        ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "WIFI_EVENT", esp_err_to_name(result));
-        return result;
+        if (const auto result = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "WIFI_EVENT", esp_err_to_name(result));
+            return result;
+        }
+        wifiEventRegistered = true;
     }
 
-    if (const auto result = esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+    if (!ipEventRegistered)
     {
-        ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "IP_EVENT", esp_err_to_name(result));
-        return result;
+        if (const auto result = esp_event_handler_instance_register(IP_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "IP_EVENT", esp_err_to_name(result));
+            return result;
+        }
+        ipEventRegistered = true;
     }
 
 #ifdef SMARTCONFIG
-    if (const auto result = esp_event_handler_instance_register(SC_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+    if (!scEventRegistered)
     {
-        ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "SC_EVENT", esp_err_to_name(result));
-        return result;
+        if (const auto result = esp_event_handler_instance_register(SC_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "SC_EVENT", esp_err_to_name(result));
+            return result;
+        }
+        scEventRegistered = true;
     }
 #endif
 
 #ifdef CONFIG_ETH_ENABLED
-    if (const auto result = esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+    if (!ethEventRegistered)
     {
-        ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "ETH_EVENT", esp_err_to_name(result));
-        return result;
+        if (const auto result = esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "ETH_EVENT", esp_err_to_name(result));
+            return result;
+        }
+        ethEventRegistered = true;
     }
 #endif
 
 #ifdef PROVISIONING
-    if (const auto result = esp_event_handler_instance_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+    if (!wifiProvEventRegistered)
     {
-        ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "WIFI_PROV_EVENT", esp_err_to_name(result));
-        return result;
+        if (const auto result = esp_event_handler_instance_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID, &wifi_event_cb, NULL, NULL); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "event_handler_instance_register() for %s failed with %s", "WIFI_PROV_EVENT", esp_err_to_name(result));
+            return result;
+        }
+        wifiProvEventRegistered = true;
     }
 #endif
 
