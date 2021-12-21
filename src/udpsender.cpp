@@ -82,4 +82,17 @@ tl::expected<void, std::string> UdpSender::send(const struct sockaddr_in &recipi
     return {};
 }
 
+tl::expected<void, std::string> UdpSender::send(const struct sockaddr_in6 &recipient, std::string_view buf)
+{
+    if (!ready())
+        return tl::make_unexpected("initializing failed, not ready to send");
+
+    if (const ssize_t sent = sendto(m_udp_server, buf.data(), buf.size(), 0, (const struct sockaddr*)&recipient, sizeof(recipient)); sent < 0)
+        return tl::make_unexpected(fmt::format("send failed with {} (errno={})", sent, errno));
+    else if (sent != buf.size())
+        return tl::make_unexpected(fmt::format("sent bytes does not match, expected={}, sent={}", buf.size(), sent));
+
+    return {};
+}
+
 } // namespace wifi_stack
