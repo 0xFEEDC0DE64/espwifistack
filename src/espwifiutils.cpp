@@ -2,6 +2,7 @@
 
 // system includes
 #include <cstdio>
+#include <bitset>
 
 // esp-idf includes
 #include <esp_log.h>
@@ -208,28 +209,7 @@ ip_address_t wifi_calculate_broadcast(ip_address_t ip, ip_address_t subnet)
 
 uint8_t wifi_calculate_subnet_cidr(ip_address_t subnetMask)
 {
-    uint8_t CIDR = 0;
-
-    for (uint8_t i = 0; i < 4; i++) {
-        if (subnetMask[i] == 0x80)  // 128
-            CIDR += 1;
-        else if (subnetMask[i] == 0xC0)  // 192
-            CIDR += 2;
-        else if (subnetMask[i] == 0xE0)  // 224
-            CIDR += 3;
-        else if (subnetMask[i] == 0xF0)  // 242
-            CIDR += 4;
-        else if (subnetMask[i] == 0xF8)  // 248
-            CIDR += 5;
-        else if (subnetMask[i] == 0xFC)  // 252
-            CIDR += 6;
-        else if (subnetMask[i] == 0xFE)  // 254
-            CIDR += 7;
-        else if (subnetMask[i] == 0xFF)  // 255
-            CIDR += 8;
-    }
-
-    return CIDR;
+    return std::bitset<32>{subnetMask.value()}.count();
 }
 
 std::string toString(ip4_addr_t val)

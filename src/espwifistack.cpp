@@ -111,7 +111,7 @@ bool wifiProvEventRegistered{};
 
 esp_netif_t* esp_netifs[ESP_IF_MAX] = {NULL, NULL, NULL};
 namespace {
-bool lowLevelInitDone = false;
+bool _lowLevelInitDone = false;
 bool _esp_wifi_started = false;
 wifi_ps_type_t _sleepEnabled = WIFI_PS_MIN_MODEM;
 
@@ -305,8 +305,6 @@ void init(const config &config)
 
     if (const auto result = esp_netif_init(); result != ESP_OK)
         ESP_LOGE(TAG, "esp_netif_init() failed with %s", esp_err_to_name(result));
-
-    espcpputils::delay(100ms);
 
     if (const auto result = wifi_start_network_event_task(config); result != ESP_OK)
         ESP_LOGE(TAG, "wifi_start_network_event_task() failed with %s", esp_err_to_name(result));
@@ -758,7 +756,7 @@ void update(const config &config)
 
 wifi_mode_t get_wifi_mode()
 {
-    if (!lowLevelInitDone || !_esp_wifi_started)
+    if (!_lowLevelInitDone || !_esp_wifi_started)
         return WIFI_MODE_NULL;
 
     wifi_mode_t mode;
@@ -1911,8 +1909,13 @@ esp_err_t wifi_start_network_event_task(const config &config)
 
 esp_err_t wifi_low_level_init(const config &config)
 {
-    if (lowLevelInitDone)
+    if (_lowLevelInitDone)
+    {
+        ESP_LOGW(TAG, "already called");
         return ESP_OK;
+    }
+
+    ESP_LOGI(TAG, "called");
 
     if (!esp_netifs[ESP_IF_WIFI_AP])
     {
@@ -1947,14 +1950,19 @@ esp_err_t wifi_low_level_init(const config &config)
         return result;
     }
 
-    lowLevelInitDone = true;
+    _lowLevelInitDone = true;
     return ESP_OK;
 }
 
 esp_err_t wifi_start()
 {
     if (_esp_wifi_started)
+    {
+        ESP_LOGW(TAG, "already called");
         return ESP_OK;
+    }
+
+    ESP_LOGI(TAG, "called");
 
     if (const auto result = esp_wifi_start(); result != ESP_OK)
     {
@@ -1969,8 +1977,13 @@ esp_err_t wifi_start()
 
 esp_err_t wifi_low_level_deinit()
 {
-    if (!lowLevelInitDone)
+    if (!_lowLevelInitDone)
+    {
+        ESP_LOGW(TAG, "already called");
         return ESP_OK;
+    }
+
+    ESP_LOGI(TAG, "called");
 
     if (const auto result = esp_wifi_deinit(); result != ESP_OK)
     {
@@ -1978,14 +1991,19 @@ esp_err_t wifi_low_level_deinit()
         return result;
     }
 
-    lowLevelInitDone = false;
+    _lowLevelInitDone = false;
     return ESP_OK;
 }
 
 esp_err_t wifi_stop()
 {
     if (!_esp_wifi_started)
+    {
+        ESP_LOGW(TAG, "already called");
         return ESP_OK;
+    }
+
+    ESP_LOGI(TAG, "called");
 
     if (const auto result = esp_wifi_stop(); result != ESP_OK)
     {
