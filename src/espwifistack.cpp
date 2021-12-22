@@ -15,10 +15,11 @@
 #include <esp_debug_helpers.h>
 #include <dhcpserver/dhcpserver_options.h>
 #include <lwip/dns.h>
+#include <esp_netif_net_stack.h>
 #if LWIP_IPV6 && LWIP_IPV6_DHCP6_STATELESS
 #include <lwip/dhcp6.h>
-#include <esp_netif_net_stack.h>
 #endif
+#include <lwip/netif.h>
 
 #ifdef CONFIG_ETH_ENABLED
     #include <esp_eth.h>
@@ -1411,6 +1412,7 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
     case WifiEventId::ETH_CONNECTED:
 #ifdef CONFIG_ETH_ENABLED
         wifi_set_status_bits(ETH_CONNECTED_BIT);
+        esp_netif_create_ip6_linklocal(esp_netifs[ESP_IF_ETH]);
 #endif
         break;
     case WifiEventId::ETH_DISCONNECTED:
