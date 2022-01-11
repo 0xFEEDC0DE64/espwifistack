@@ -22,12 +22,13 @@
 #include <lwip/netif.h>
 
 #ifdef CONFIG_ETH_ENABLED
-    #include <esp_eth.h>
-    #include <esp_eth_phy.h>
-    #include <esp_eth_mac.h>
-    #include <esp_eth_com.h>
-    #include <soc/emac_ext_struct.h>
-    #include <soc/rtc.h>
+#include <esp_eth.h>
+#include <esp_eth_phy.h>
+#include <esp_eth_mac.h>
+#include <esp_eth_com.h>
+#include <soc/emac_ext_struct.h>
+#include <soc/rtc.h>
+#include <soc/io_mux_reg.h>
 #endif
 
 #ifdef CONFIG_ETH_ENABLED
@@ -2920,9 +2921,15 @@ esp_err_t eth_on_lowlevel_init_done(esp_eth_handle_t eth_handle)
 #if CONFIG_ETH_RMII_CLK_INPUT
 void emac_config_apll_clock()
 {
+    constexpr auto rtc_clk_apll_enable = [](bool enable, uint32_t sdm0, uint32_t sdm1, uint32_t sdm2, uint32_t o_div){
+        rtc_clk_apll_coeff_set(o_div, sdm0, sdm1, sdm2);
+        ::rtc_clk_apll_enable(enable);
+    };
+
     /* apll_freq = xtal_freq * (4 + sdm2 + sdm1/256 + sdm0/65536)/((o_div + 2) * 2) */
     rtc_xtal_freq_t rtc_xtal_freq = rtc_clk_xtal_freq_get();
-    switch (rtc_xtal_freq) {
+    switch (rtc_xtal_freq)
+    {
     case RTC_XTAL_FREQ_40M: // Recommended
         /* 50 MHz = 40MHz * (4 + 6) / (2 * (2 + 2) = 50.000 */
         /* sdm0 = 0, sdm1 = 0, sdm2 = 6, o_div = 2 */
