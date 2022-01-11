@@ -142,6 +142,7 @@ const WiFiState &wifiStateMachineState{_wifiState};
 cpputils::Signal<> scanResultChanged{};
 const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedFromConnected{_lastStaSwitchedFromConnected};
 const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedToConnected{_lastStaSwitchedToConnected};
+const bool &esp_wifi_started{_esp_wifi_started};
 const uint8_t &sta_error_count{_wifiConnectFailCounter};
 const std::string &last_sta_error_message{_last_sta_error_message};
 const std::vector<mac_t> &pastConnectPlan{_pastConnectPlan};
@@ -1960,7 +1961,7 @@ esp_err_t wifi_start()
 {
     if (_esp_wifi_started)
     {
-        ESP_LOGW(TAG, "already called");
+        //ESP_LOGW(TAG, "already called");
         return ESP_OK;
     }
 

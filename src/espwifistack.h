@@ -45,6 +45,8 @@ void init(const config &config);
 //! Call repeatedly, approx. every 100ms
 void update(const config &config);
 
+extern const bool &esp_wifi_started;
+
 extern const uint8_t &sta_error_count;
 extern const std::string &last_sta_error_message;
 
