@@ -95,4 +95,62 @@ tl::expected<void, std::string> UdpSender::send(const struct sockaddr_in6 &recip
     return {};
 }
 
+tl::expected<void, std::string> UdpSender::send(ip_addr_t ip, uint16_t port, std::string_view buf)
+{
+    switch (ip.type)
+    {
+    case IPADDR_TYPE_V4:
+    {
+        struct sockaddr_in recipient;
+        recipient.sin_family = AF_INET;
+        recipient.sin_addr.s_addr = ip.u_addr.ip4.addr;
+        recipient.sin_port = htons(port);
+        return send(recipient, buf);
+    }
+    case IPADDR_TYPE_V6:
+    {
+        struct sockaddr_in6 recipient;
+        recipient.sin6_family = AF_INET6;
+        recipient.sin6_addr.un.u32_addr[0] = ip.u_addr.ip6.addr[0];
+        recipient.sin6_addr.un.u32_addr[1] = ip.u_addr.ip6.addr[1];
+        recipient.sin6_addr.un.u32_addr[2] = ip.u_addr.ip6.addr[2];
+        recipient.sin6_addr.un.u32_addr[3] = ip.u_addr.ip6.addr[3];
+        //recipient.sin6_scope_id = ip.u_addr.ip6.zone;
+        recipient.sin6_port = htons(port);
+        return send(recipient, buf);
+    }
+    default:
+        return tl::make_unexpected(fmt::format("unsupported ip type {}", ip.type));
+    }
+}
+
+tl::expected<void, std::string> UdpSender::send(esp_ip_addr_t ip, uint16_t port, std::string_view buf)
+{
+    switch (ip.type)
+    {
+    case ESP_IPADDR_TYPE_V4:
+    {
+        struct sockaddr_in recipient;
+        recipient.sin_family = AF_INET;
+        recipient.sin_addr.s_addr = ip.u_addr.ip4.addr;
+        recipient.sin_port = htons(port);
+        return send(recipient, buf);
+    }
+    case ESP_IPADDR_TYPE_V6:
+    {
+        struct sockaddr_in6 recipient;
+        recipient.sin6_family = AF_INET6;
+        recipient.sin6_addr.un.u32_addr[0] = ip.u_addr.ip6.addr[0];
+        recipient.sin6_addr.un.u32_addr[1] = ip.u_addr.ip6.addr[1];
+        recipient.sin6_addr.un.u32_addr[2] = ip.u_addr.ip6.addr[2];
+        recipient.sin6_addr.un.u32_addr[3] = ip.u_addr.ip6.addr[3];
+        //recipient.sin6_scope_id = ip.u_addr.ip6.zone;
+        recipient.sin6_port = htons(port);
+        return send(recipient, buf);
+    }
+    default:
+        return tl::make_unexpected(fmt::format("unsupported ip type {}", ip.type));
+    }
+}
+
 } // namespace wifi_stack
