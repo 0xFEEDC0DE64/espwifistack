@@ -2659,12 +2659,15 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
     {
 #endif
 #if CONFIG_ETH_USE_ESP32_EMAC
+        eth_esp32_emac_config_t emac_config ETH_ESP32_EMAC_DEFAULT_CONFIG();
+        emac_config.smi_mdc_gpio_num = eth.mdc;
+        emac_config.smi_mdio_gpio_num = eth.mdio;
+        emac_config.interface = EMAC_DATA_INTERFACE_RMII;
+
         eth_mac_config_t mac_config ETH_MAC_DEFAULT_CONFIG();
-        mac_config.smi_mdc_gpio_num = eth.mdc;
-        mac_config.smi_mdio_gpio_num = eth.mdio;
         mac_config.sw_reset_timeout_ms = 1000;
 
-        eth_mac = esp_eth_mac_new_esp32(&mac_config);
+        eth_mac = esp_eth_mac_new_esp32(&emac_config, &mac_config);
         if (!eth_mac)
         {
             auto msg = std::string{"esp_eth_mac_new_esp32() failed"};
