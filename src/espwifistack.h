@@ -50,6 +50,16 @@ extern const bool &esp_wifi_started;
 extern const uint8_t &sta_error_count;
 extern const std::string &last_sta_error_message;
 
+struct StaError
+{
+    espchrono::millis_clock::time_point timestamp{espchrono::millis_clock::now()};
+    std::string ssid;
+    mac_t bssid;
+    uint8_t reason;
+    const char *reasonStr;
+};
+extern const std::optional<StaError> &last_sta_error;
+
 extern const std::vector<mac_t> &pastConnectPlan;
 extern const mac_t &currentConnectPlanEntry;
 extern const std::vector<mac_t> &connectPlan;

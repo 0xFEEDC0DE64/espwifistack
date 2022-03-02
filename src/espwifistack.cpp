@@ -121,6 +121,8 @@ wifi_ps_type_t _sleepEnabled = WIFI_PS_MIN_MODEM;
 std::atomic<WiFiStaStatus> _sta_status{WiFiStaStatus::NO_SHIELD};
 std::optional<espchrono::millis_clock::time_point> _wifiConnectFailFlag;
 uint8_t _wifiConnectFailCounter{};
+
+std::optional<StaError> _last_sta_error;
 std::string _last_sta_error_message;
 
 // scan
@@ -146,6 +148,7 @@ const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedToConne
 const bool &esp_wifi_started{_esp_wifi_started};
 const uint8_t &sta_error_count{_wifiConnectFailCounter};
 const std::string &last_sta_error_message{_last_sta_error_message};
+const std::optional<StaError> &last_sta_error{_last_sta_error};
 const std::vector<mac_t> &pastConnectPlan{_pastConnectPlan};
 const mac_t &currentConnectPlanEntry{_currentConnectPlanEntry};
 const std::vector<mac_t> &connectPlan{_connectPlan};
@@ -1319,10 +1322,20 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
 
         const auto reason = event.wifi_sta_disconnected.reason;
         {
+            const mac_t bssid{event.wifi_sta_disconnected.bssid};
+            const char * const reasonStr = reason2str(reason);
+
+            _last_sta_error = StaError {
+                .ssid = std::string{ssid},
+                .bssid = bssid,
+                .reason = reason,
+                .reasonStr = reasonStr
+            };
+
             auto msg = fmt::format("{} WIFI_STA_DISCONNECTED ssid=\"{}\" bssid={} reason={}({})",
                                    espchrono::millis_clock::now().time_since_epoch().count(),
-                                   ssid, toString(mac_t{event.wifi_sta_disconnected.bssid}),
-                                   reason, reason2str(reason));
+                                   ssid, toString(bssid),
+                                   reason, reasonStr);
             ESP_LOGW(TAG, "%.*s", msg.size(), msg.data());
             _last_sta_error_message += msg;
             _last_sta_error_message += '\n';
