@@ -131,6 +131,7 @@ espchrono::milliseconds32 scanTimeout = 10s;
 std::optional<scan_result> _scanResult;
 bool scanResultChangedFlag{};
 
+std::string _connectPlanWifisChecksum;
 std::vector<mac_t> _pastConnectPlan;
 mac_t _currentConnectPlanEntry;
 std::vector<mac_t> _connectPlan;
@@ -569,11 +570,25 @@ void update(const config &config)
                 ESP_LOGI(TAG, "clearing connect fail flag");
                 _wifiConnectFailFlag = std::nullopt;
 
-                if (_wifiConnectFailCounter++ >= 10)
+                if (auto newConnectPlanWifisChecksum = calculateWifisChecksum(*config.sta);
+                    _connectPlanWifisChecksum != newConnectPlanWifisChecksum)
                 {
-                    ESP_LOGE(TAG, "fail flag was set and fail count exceeded limit");
+                    ESP_LOGI(TAG, "wifi configs changed, building new connect plan...");
+
                     if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
                         ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
+
+                    setWifiState(WiFiState::None); // results in another scan
+
+                    buildConnectPlan(config, *config.sta);
+                }
+                else if (_wifiConnectFailCounter++ >= 10)
+                {
+                    ESP_LOGE(TAG, "fail flag was set and fail count exceeded limit");
+
+                    if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
+                        ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
+
                     setWifiState(WiFiState::None); // results in another scan
                 }
                 else
@@ -584,6 +599,7 @@ void update(const config &config)
 
                     if (const auto result = wifi_sta_disconnect(config); result != ESP_OK)
                         ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
+
                     if (const auto result = wifi_sta_restart(config); result != ESP_OK)
                         ESP_LOGE(TAG, "wifi_sta_restart() failed with %s", esp_err_to_name(result));
                 }
@@ -595,8 +611,10 @@ void update(const config &config)
                     if (_wifiConnectFailCounter++ >= 10)
                     {
                         ESP_LOGE(TAG, "connecting timed out, fail flag was set and fail count exceeded limit");
+
                         if (const auto result = wifi_sta_disconnect(config, true); result != ESP_OK)
                             ESP_LOGE(TAG, "wifi_sta_disconnect() failed with %s", esp_err_to_name(result));
+
                         setWifiState(WiFiState::None); // results in another scan
                     }
                     else
@@ -2501,6 +2519,8 @@ bool buildConnectPlan(const config &config, const sta_config &sta_config)
 
 bool buildConnectPlan(const config &config, const sta_config &sta_config, const scan_result &scanResult)
 {
+    _connectPlanWifisChecksum = calculateWifisChecksum(sta_config);
+
     _pastConnectPlan.clear();
     _currentConnectPlanEntry = mac_t{};
     _connectPlan.clear();
@@ -2581,17 +2601,19 @@ bool nextConnectPlanItem(const config &config, const sta_config &sta_config, con
         return nextConnectPlanItem(config, sta_config, scanResult);
     }
 
+    const std::string_view ssid{reinterpret_cast<const char *>(scanResultIter->ssid)};
+
     const auto configIter = std::find_if(std::begin(sta_config.wifis), std::end(sta_config.wifis),
-                                         [ssid=scanResultIter->ssid](const wifi_entry &entry){ return entry.ssid == (const char *)ssid; });
+                                         [ssid](const wifi_entry &entry){ return entry.ssid == ssid; });
 
     if (configIter == std::end(sta_config.wifis))
     {
-        ESP_LOGW(TAG, "could not find config for ssid %s", scanResultIter->ssid);
+        ESP_LOGW(TAG, "could not find config for ssid %.*s", ssid.size(), ssid.data());
         return nextConnectPlanItem(config, sta_config, scanResult);
     }
 
-    ESP_LOGI(TAG, "connecting to %s (auth=%s, key=%.*s, channel=%i, rssi=%i, bssid=%s)",
-             (const char *)scanResultIter->ssid,
+    ESP_LOGI(TAG, "connecting to %.*s (auth=%s, key=%.*s, channel=%i, rssi=%i, bssid=%s)",
+             ssid.size(), ssid.data(),
              toString(scanResultIter->authmode).c_str(),
              configIter->key.size(), configIter->key.data(),
              scanResultIter->primary,
