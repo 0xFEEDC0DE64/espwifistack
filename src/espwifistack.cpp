@@ -2661,13 +2661,6 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
 {
     eth_clock_mode = eth.clk_mode;
 
-    if (const auto result = tcpip_adapter_set_default_eth_handlers(); result != ESP_OK)
-    {
-        auto msg = fmt::format("tcpip_adapter_set_default_eth_handlers() failed with {}", esp_err_to_name(result));
-        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
-    }
-
     esp_netif_config_t cfg ESP_NETIF_DEFAULT_ETH();
 
     esp_netifs[ESP_IF_ETH] = esp_netif_new(&cfg);
