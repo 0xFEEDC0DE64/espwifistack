@@ -94,7 +94,7 @@ mac_or_error get_default_mac_addr();
 mac_or_error get_custom_mac_addr();
 mac_or_error get_base_mac_addr();
 tl::expected<void, std::string> set_base_mac_addr(mac_t mac_addr);
-tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_t tcpip_if);
+tl::expected<esp_netif_ip_info_t, std::string> get_ip_info(esp_netif_t *esp_netif);
 tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_interface_t interf);
 tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_netif_t *esp_netif);
 

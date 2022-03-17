@@ -13,6 +13,7 @@
 // esp-idf includes
 #include <esp_log.h>
 #include <esp_debug_helpers.h>
+#include <dhcpserver/dhcpserver.h>
 #include <dhcpserver/dhcpserver_options.h>
 #include <lwip/dns.h>
 #include <esp_netif_net_stack.h>
@@ -20,6 +21,7 @@
 #include <lwip/dhcp6.h>
 #endif
 #include <lwip/netif.h>
+#include <esp_mac.h>
 
 #ifdef CONFIG_ETH_ENABLED
 #include <esp_eth.h>
@@ -962,14 +964,14 @@ tl::expected<void, std::string> set_base_mac_addr(mac_t mac_addr)
     }
 }
 
-tl::expected<tcpip_adapter_ip_info_t, std::string> get_ip_info(tcpip_adapter_if_t tcpip_if)
+tl::expected<esp_netif_ip_info_t, std::string> get_ip_info(esp_netif_t *esp_netif)
 {
-    tcpip_adapter_ip_info_t ip;
-    if (const auto result = tcpip_adapter_get_ip_info(tcpip_if, &ip); result == ESP_OK)
+    esp_netif_ip_info_t ip;
+    if (const auto result = esp_netif_get_ip_info(esp_netif, &ip); result == ESP_OK)
         return ip;
     else
     {
-        ESP_LOGE(TAG, "tcpip_adapter_get_ip_info() failed with %s", esp_err_to_name(result));
+        ESP_LOGE(TAG, "esp_netif_get_ip_info() failed with %s", esp_err_to_name(result));
         return tl::make_unexpected(fmt::format("tcpip_adapter_get_ip_info() failed with {}", esp_err_to_name(result)));
     }
 }
@@ -2233,9 +2235,12 @@ esp_err_t wifi_set_ap_ip(const config &config, const static_ip_config &ip)
         lease.start_ip.addr = ip.ip.value() + (1 << 24);
         lease.end_ip.addr = ip.ip.value() + (11 << 24);
 
-        if (const auto result = tcpip_adapter_dhcps_option(ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(dhcps_lease_t)); result != ESP_OK)
+        if (const auto result = esp_netif_dhcps_option(esp_netifs[ESP_IF_WIFI_AP],
+                                                       ESP_NETIF_OP_SET,
+                                                       ESP_NETIF_REQUESTED_IP_ADDRESS,
+                                                       &lease, sizeof(dhcps_lease_t)); result != ESP_OK)
         {
-            ESP_LOGE(TAG, "tcpip_adapter_dhcps_option() failed with %s", esp_err_to_name(result));
+            ESP_LOGE(TAG, "esp_netif_dhcps_option() failed with %s", esp_err_to_name(result));
             return result;
         }
     }
