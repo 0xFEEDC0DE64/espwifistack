@@ -205,7 +205,7 @@ struct eth_config
     static_dns_config static_dns;
 
     uint8_t phy_addr;
-    int power;
+    int reset_gpio;
     int mdc;
     int mdio;
     eth_phy_type_t type;
@@ -217,7 +217,7 @@ struct eth_config
                left.static_ip == right.static_ip &&
                left.static_dns == right.static_dns &&
                left.phy_addr == right.phy_addr &&
-               left.power == right.power &&
+               left.reset_gpio == right.reset_gpio &&
                left.mdc == right.mdc &&
                left.mdio == right.mdio &&
                left.type == right.type &&

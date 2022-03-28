@@ -2714,7 +2714,7 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
 
     eth_phy_config_t phy_config ETH_PHY_DEFAULT_CONFIG();
     phy_config.phy_addr = eth.phy_addr;
-    phy_config.reset_gpio_num = eth.power;
+    phy_config.reset_gpio_num = eth.reset_gpio;
 
     esp_eth_phy_t *eth_phy{};
 
