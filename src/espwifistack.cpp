@@ -2662,6 +2662,9 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
     eth_clock_mode = eth.clk_mode;
 
     esp_netif_config_t cfg ESP_NETIF_DEFAULT_ETH();
+    esp_netif_inherent_config_t newBase = *cfg.base;
+    newBase.route_prio = 150;
+    cfg.base = &newBase;
 
     esp_netifs[ESP_IF_ETH] = esp_netif_new(&cfg);
     if (!esp_netifs[ESP_IF_ETH])
