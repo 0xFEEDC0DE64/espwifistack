@@ -343,14 +343,14 @@ void init(const config &config)
     if (config.dual_ant)
     {
         {
-            constexpr const wifi_ant_gpio_config_t config {
+            const wifi_ant_gpio_config_t cfg {
                 .gpio_cfg {
-                    wifi_ant_gpio_t { .gpio_select = 1, .gpio_num = 2 },
-                    wifi_ant_gpio_t { .gpio_select = 1, .gpio_num = 25 }
+                    wifi_ant_gpio_t { .gpio_select = 1, .gpio_num = (uint8_t)config.dual_ant->selectPin0 },
+                    wifi_ant_gpio_t { .gpio_select = 1, .gpio_num = (uint8_t)config.dual_ant->selectPin1 }
                 }
             };
 
-            if (const auto result = esp_wifi_set_ant_gpio(&config); result != ESP_OK)
+            if (const auto result = esp_wifi_set_ant_gpio(&cfg); result != ESP_OK)
                 ESP_LOGE(TAG, "esp_wifi_set_ant_gpio() failed with %s", esp_err_to_name(result));
         }
 

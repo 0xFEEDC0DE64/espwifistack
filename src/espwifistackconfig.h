@@ -11,6 +11,7 @@
 
 // esp-idf includes
 #include <esp_wifi_types.h>
+#include <hal/gpio_types.h>
 
 // 3rdparty lib includes
 #include <espchrono.h>
@@ -133,7 +134,8 @@ struct sta_scan_config
 
 struct dual_ant_config
 {
-
+    gpio_num_t selectPin0{GPIO_NUM_2};
+    gpio_num_t selectPin1{GPIO_NUM_25};
 };
 
 struct sta_config
