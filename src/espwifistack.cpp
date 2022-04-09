@@ -208,7 +208,6 @@ namespace {
 //#endif
 
 DECLARE_TYPESAFE_ENUM(WifiEventId, : int32_t, WifiEventIdValues)
-IMPLEMENT_TYPESAFE_ENUM(WifiEventId, : int32_t, WifiEventIdValues)
 
 static_assert(sizeof(WifiEventId) == 4);
 

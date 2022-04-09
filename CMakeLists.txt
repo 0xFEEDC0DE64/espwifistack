@@ -8,7 +8,6 @@ set(headers
 
 set(sources
     src/espwifistack.cpp
-    src/espwifistackenums.cpp
     src/espwifiutils.cpp
     src/udpsender.cpp
 )
