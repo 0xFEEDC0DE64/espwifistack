@@ -332,6 +332,8 @@ void init(const config &config)
 
     if (config.ap)
     {
+        ESP_LOGI(TAG, "AccessPoint %.*s", config.ap->ssid.size(), config.ap->ssid.data());
+
         if (const auto result = wifi_set_ap_ip(config, config.ap->static_ip); result != ESP_OK)
             ESP_LOGE(TAG, "wifi_set_ap_ip() failed with %s", esp_err_to_name(result));
 
