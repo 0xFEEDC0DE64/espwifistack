@@ -13,7 +13,6 @@ set(sources
 )
 
 set(dependencies
-    arduino-esp32
     esp_common
     esp_netif
     lwip

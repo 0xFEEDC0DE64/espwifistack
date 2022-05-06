@@ -36,4 +36,8 @@ config LOG_LOCAL_LEVEL_WIFI_STACK
     default 4 if LOG_LOCAL_LEVEL_WIFI_STACK_DEBUG
     default 5 if LOG_LOCAL_LEVEL_WIFI_STACK_VERBOSE
 
+config WIFI_DUAL_ANT
+    bool "Enable dual antenna functionality"
+    default false
+
 endmenu

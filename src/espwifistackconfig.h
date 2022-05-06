@@ -132,11 +132,13 @@ struct sta_scan_config
     }
 };
 
+#ifdef CONFIG_WIFI_DUAL_ANT
 struct dual_ant_config
 {
     gpio_num_t selectPin0{GPIO_NUM_2};
     gpio_num_t selectPin1{GPIO_NUM_25};
 };
+#endif
 
 struct sta_config
 {
@@ -236,7 +238,9 @@ struct eth_config
 struct config
 {
     std::optional<mac_t> base_mac_override;
+#ifdef CONFIG_WIFI_DUAL_ANT
     std::optional<dual_ant_config> dual_ant;
+#endif
     std::optional<sta_config> sta;
     std::optional<ap_config> ap;
 #ifdef CONFIG_ETH_ENABLED

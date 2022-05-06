@@ -341,6 +341,7 @@ void init(const config &config)
             ESP_LOGE(TAG, "wifi_set_ap_config() failed with %s", esp_err_to_name(result));
     }
 
+#ifdef CONFIG_WIFI_DUAL_ANT
     if (config.dual_ant)
     {
         {
@@ -368,6 +369,7 @@ void init(const config &config)
                 ESP_LOGE(TAG, "esp_wifi_set_ant() failed with %s", esp_err_to_name(result));
         }
     }
+#endif
 
     last_ap_config = config.ap;
 
