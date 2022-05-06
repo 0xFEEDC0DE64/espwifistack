@@ -19,6 +19,15 @@
 // local includes
 #include "espwifiutils.h"
 
+inline bool operator==(const wifi_country_t &left, const wifi_country_t &right)
+{
+    return left.cc == right.cc &&
+           left.schan == right.schan &&
+           left.nchan == right.nchan &&
+           left.max_tx_power == right.max_tx_power &&
+           left.policy == right.policy;
+}
+
 namespace wifi_stack {
 struct static_ip_config
 {
@@ -137,6 +146,17 @@ struct dual_ant_config
 {
     gpio_num_t selectPin0{GPIO_NUM_2};
     gpio_num_t selectPin1{GPIO_NUM_25};
+
+    friend bool operator==(const dual_ant_config &left, const dual_ant_config &right)
+    {
+        return left.selectPin0 == right.selectPin0 &&
+               left.selectPin1 == right.selectPin1;
+    }
+
+    friend bool operator!=(const dual_ant_config &left, const dual_ant_config &right)
+    {
+        return !(left == right);
+    }
 };
 #endif
 
@@ -251,12 +271,15 @@ struct config
     friend bool operator==(const config &left, const config &right)
     {
         return left.base_mac_override == right.base_mac_override &&
-               left.sta == right.sta &&
-               left.ap == right.ap
-#ifdef CONFIG_ETH_ENABLED
-                && left.eth == right.eth
+#ifdef CONFIG_WIFI_DUAL_ANT
+               left.dual_ant == right.dual_ant &&
 #endif
-                ;
+               left.sta == right.sta &&
+               left.ap == right.ap &&
+#ifdef CONFIG_ETH_ENABLED
+               left.eth == right.eth &&
+#endif
+               left.country == right.country;
     }
 
     friend bool operator!=(const config &left, const config &right)
