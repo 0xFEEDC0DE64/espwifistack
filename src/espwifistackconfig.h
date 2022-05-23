@@ -218,34 +218,17 @@ struct ap_config
 
 #ifdef CONFIG_ETH_ENABLED
 
-enum eth_clock_mode_t { ETH_CLOCK_GPIO0_IN, ETH_CLOCK_GPIO0_OUT, ETH_CLOCK_GPIO16_OUT, ETH_CLOCK_GPIO17_OUT };
-
-enum eth_phy_type_t { ETH_PHY_LAN87XX, ETH_PHY_TLK110, ETH_PHY_RTL8201, ETH_PHY_DP83848, ETH_PHY_DM9051, ETH_PHY_KSZ80XX, ETH_PHY_MAX };
-
 struct eth_config
 {
     std::string hostname;
     std::optional<static_ip_config> static_ip;
     static_dns_config static_dns;
 
-    uint8_t phy_addr;
-    int reset_gpio;
-    int mdc;
-    int mdio;
-    eth_phy_type_t type;
-    eth_clock_mode_t clk_mode;
-
     friend bool operator==(const eth_config &left, const eth_config &right)
     {
         return left.hostname == right.hostname &&
                left.static_ip == right.static_ip &&
-               left.static_dns == right.static_dns &&
-               left.phy_addr == right.phy_addr &&
-               left.reset_gpio == right.reset_gpio &&
-               left.mdc == right.mdc &&
-               left.mdio == right.mdio &&
-               left.type == right.type &&
-               left.clk_mode == right.clk_mode;
+               left.static_dns == right.static_dns;
     }
 
     friend bool operator!=(const eth_config &left, const eth_config &right)

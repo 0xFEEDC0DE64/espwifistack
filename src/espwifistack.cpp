@@ -24,6 +24,7 @@
 #include <esp_mac.h>
 
 #ifdef CONFIG_ETH_ENABLED
+#include <driver/gpio.h>
 #include <esp_eth.h>
 #include <esp_eth_phy.h>
 #include <esp_eth_mac.h>
@@ -31,11 +32,6 @@
 #include <soc/emac_ext_struct.h>
 #include <soc/rtc.h>
 #include <soc/io_mux_reg.h>
-#endif
-
-#ifdef CONFIG_ETH_ENABLED
-// Arduino includes
-#include <Arduino.h>
 #endif
 
 // 3rdparty lib includes
@@ -249,7 +245,6 @@ const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAV
 
 bool eth_initialized{};
 bool eth_started{};
-eth_clock_mode_t eth_clock_mode{};
 esp_eth_handle_t eth_handle{};
 #endif
 
@@ -292,10 +287,6 @@ bool nextConnectPlanItem(const config &config, const sta_config &sta_config, con
 void handleWifiEvents(const config &config, TickType_t xTicksToWait);
 #ifdef CONFIG_ETH_ENABLED
 tl::expected<void, std::string> eth_begin(const config &config, const eth_config &eth);
-esp_err_t eth_on_lowlevel_init_done(esp_eth_handle_t eth_handle);
-#if CONFIG_ETH_RMII_CLK_INPUT
-void emac_config_apll_clock();
-#endif
 #endif
 } // namespace
 
@@ -2662,8 +2653,6 @@ void handleWifiEvents(const config &config, TickType_t xTicksToWait)
 #ifdef CONFIG_ETH_ENABLED
 tl::expected<void, std::string> eth_begin(const config &config, const eth_config &eth)
 {
-    eth_clock_mode = eth.clk_mode;
-
     esp_netif_config_t cfg ESP_NETIF_DEFAULT_ETH();
     esp_netif_inherent_config_t newBase = *cfg.base;
     newBase.route_prio = 150;
@@ -2677,56 +2666,32 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
         return tl::make_unexpected(std::move(msg));
     }
 
-//    if (const auto result = esp_eth_set_default_handlers(esp_netifs[ESP_IF_ETH]); result != ESP_OK)
-//    {
-//        auto msg = fmt::format("esp_eth_set_default_handlers() failed with {}", esp_err_to_name(result));
-//        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-//        return tl::make_unexpected(std::move(msg));
-//    }
-
     esp_eth_mac_t *eth_mac{};
 
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
-    if (type == ETH_PHY_DM9051)
+    eth_esp32_emac_config_t emac_config ETH_ESP32_EMAC_DEFAULT_CONFIG();
+    emac_config.smi_mdc_gpio_num = 23;
+    emac_config.smi_mdio_gpio_num = 18;
+    emac_config.interface = EMAC_DATA_INTERFACE_RMII;
+
+    eth_mac_config_t mac_config ETH_MAC_DEFAULT_CONFIG();
+    mac_config.sw_reset_timeout_ms = 1000;
+
+    eth_mac = esp_eth_mac_new_esp32(&emac_config, &mac_config);
+    if (!eth_mac)
     {
-        //todo
-        auto msg = std::string{"ETH_PHY_DM9051 not implemented"};
+        auto msg = std::string{"esp_eth_mac_new_esp32() failed"};
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
         return tl::make_unexpected(std::move(msg));
     }
-    else
-    {
-#endif
-#if CONFIG_ETH_USE_ESP32_EMAC
-        eth_esp32_emac_config_t emac_config ETH_ESP32_EMAC_DEFAULT_CONFIG();
-        emac_config.smi_mdc_gpio_num = eth.mdc;
-        emac_config.smi_mdio_gpio_num = eth.mdio;
-        emac_config.interface = EMAC_DATA_INTERFACE_RMII;
-
-        eth_mac_config_t mac_config ETH_MAC_DEFAULT_CONFIG();
-        mac_config.sw_reset_timeout_ms = 1000;
-
-        eth_mac = esp_eth_mac_new_esp32(&emac_config, &mac_config);
-        if (!eth_mac)
-        {
-            auto msg = std::string{"esp_eth_mac_new_esp32() failed"};
-            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-            return tl::make_unexpected(std::move(msg));
-        }
-#endif
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
-    }
-#endif
 
     eth_phy_config_t phy_config ETH_PHY_DEFAULT_CONFIG();
-    phy_config.phy_addr = eth.phy_addr;
-    phy_config.reset_gpio_num = eth.reset_gpio;
+    phy_config.phy_addr = 1;
+    phy_config.reset_gpio_num = 16;
 
     esp_eth_phy_t *eth_phy{};
 
-    switch (eth.type)
+    if constexpr (true)
     {
-    case ETH_PHY_LAN87XX:
         eth_phy = esp_eth_phy_new_lan87xx(&phy_config);
         if (!eth_phy)
         {
@@ -2734,46 +2699,9 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
             ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
             return tl::make_unexpected(std::move(msg));
         }
-        break;
-    case ETH_PHY_TLK110:
-        eth_phy = esp_eth_phy_new_ip101(&phy_config);
-        if (!eth_phy)
-        {
-            auto msg = std::string{"esp_eth_phy_new_ip101() failed"};
-            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-            return tl::make_unexpected(std::move(msg));
-        }
-        break;
-    case ETH_PHY_RTL8201:
-        eth_phy = esp_eth_phy_new_rtl8201(&phy_config);
-        if (!eth_phy)
-        {
-            auto msg = std::string{"esp_eth_phy_new_rtl8201() failed"};
-            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-            return tl::make_unexpected(std::move(msg));
-        }
-        break;
-    case ETH_PHY_DP83848:
-        eth_phy = esp_eth_phy_new_dp83848(&phy_config);
-        if (!eth_phy)
-        {
-            auto msg = std::string{"esp_eth_phy_new_dp83848() failed"};
-            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-            return tl::make_unexpected(std::move(msg));
-        }
-        break;
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
-    case ETH_PHY_DM9051:
-        eth_phy = esp_eth_phy_new_dm9051(&phy_config);
-        if (!eth_phy)
-        {
-            auto msg = std::string{"esp_eth_phy_new_dm9051() failed"};
-            ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-            return tl::make_unexpected(std::move(msg));
-        }
-        break;
-#endif
-    case ETH_PHY_KSZ80XX:
+    }
+    else
+    {
         eth_phy = esp_eth_phy_new_ksz80xx(&phy_config);
         if (!eth_phy)
         {
@@ -2781,18 +2709,11 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
             ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
             return tl::make_unexpected(std::move(msg));
         }
-        break;
-    default:
-        auto msg = fmt::format("unknown type {}", eth.type);
-        ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
     }
 
     eth_handle = {};
 
     esp_eth_config_t eth_config ETH_DEFAULT_CONFIG(eth_mac, eth_phy);
-    eth_config.on_lowlevel_init_done = eth_on_lowlevel_init_done;
-    //eth_config.on_lowlevel_deinit_done = on_lowlevel_deinit_done;
 
     if (const auto result = esp_eth_driver_install(&eth_config, &eth_handle); result != ESP_OK)
     {
@@ -2858,141 +2779,6 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
 
     return {};
 }
-
-esp_err_t eth_on_lowlevel_init_done(esp_eth_handle_t eth_handle)
-{
-#if CONFIG_IDF_TARGET_ESP32
-    if (eth_clock_mode > ETH_CLOCK_GPIO17_OUT)
-    {
-        return ESP_FAIL;
-    }
-    // First deinit current config if different
-#if CONFIG_ETH_RMII_CLK_INPUT
-    if (eth_clock_mode != ETH_CLOCK_GPIO0_IN && eth_clock_mode != ETH_CLOCK_GPIO0_OUT)
-    {
-        pinMode(0, INPUT);
-    }
-#endif
-
-#if CONFIG_ETH_RMII_CLK_OUTPUT
-#if CONFIG_ETH_RMII_CLK_OUTPUT_GPIO0
-    if (eth_clock_mode > ETH_CLOCK_GPIO0_OUT)
-    {
-        pinMode(0, INPUT);
-    }
-#elif CONFIG_ETH_RMII_CLK_OUT_GPIO == 16
-    if (eth_clock_mode != ETH_CLOCK_GPIO16_OUT)
-    {
-        pinMode(16, INPUT);
-    }
-#elif CONFIG_ETH_RMII_CLK_OUT_GPIO == 17
-    if (eth_clock_mode != ETH_CLOCK_GPIO17_OUT)
-    {
-        pinMode(17, INPUT);
-    }
-#endif
-#endif
-
-    // Setup interface for the correct pin
-#if CONFIG_ETH_PHY_INTERFACE_MII
-    EMAC_EXT.ex_phyinf_conf.phy_intf_sel = 4;
-#endif
-
-    if (eth_clock_mode == ETH_CLOCK_GPIO0_IN)
-    {
-#ifndef CONFIG_ETH_RMII_CLK_INPUT
-        // RMII clock (50MHz) input to GPIO0
-        //gpio_hal_iomux_func_sel(PERIPHS_IO_MUX_GPIO0_U, FUNC_GPIO0_EMAC_TX_CLK);
-        //PIN_INPUT_ENABLE(GPIO_PIN_MUX_REG[0]);
-        pinMode(0, INPUT);
-        pinMode(0, FUNCTION_6);
-        EMAC_EXT.ex_clk_ctrl.ext_en = 1;
-        EMAC_EXT.ex_clk_ctrl.int_en = 0;
-        EMAC_EXT.ex_oscclk_conf.clk_sel = 1;
-#endif
-    }
-    else
-    {
-        if (eth_clock_mode == ETH_CLOCK_GPIO0_OUT)
-        {
-#ifndef CONFIG_ETH_RMII_CLK_OUTPUT_GPIO0
-            // APLL clock output to GPIO0 (must be configured to 50MHz!)
-            //gpio_hal_iomux_func_sel(PERIPHS_IO_MUX_GPIO0_U, FUNC_GPIO0_CLK_OUT1);
-            //PIN_INPUT_DISABLE(GPIO_PIN_MUX_REG[0]);
-            pinMode(0, OUTPUT);
-            pinMode(0, FUNCTION_2);
-            // Choose the APLL clock to output on GPIO
-            REG_WRITE(PIN_CTRL, 6);
-#endif
-        }
-        else if (eth_clock_mode == ETH_CLOCK_GPIO16_OUT)
-        {
-#if CONFIG_ETH_RMII_CLK_OUT_GPIO != 16
-            // RMII CLK (50MHz) output to GPIO16
-            //gpio_hal_iomux_func_sel(PERIPHS_IO_MUX_GPIO16_U, FUNC_GPIO16_EMAC_CLK_OUT);
-            //PIN_INPUT_DISABLE(GPIO_PIN_MUX_REG[16]);
-            pinMode(16, OUTPUT);
-            pinMode(16, FUNCTION_6);
-#endif
-        }
-        else if (eth_clock_mode == ETH_CLOCK_GPIO17_OUT)
-        {
-#if CONFIG_ETH_RMII_CLK_OUT_GPIO != 17
-            // RMII CLK (50MHz) output to GPIO17
-            //gpio_hal_iomux_func_sel(PERIPHS_IO_MUX_GPIO17_U, FUNC_GPIO17_EMAC_CLK_OUT_180);
-            //PIN_INPUT_DISABLE(GPIO_PIN_MUX_REG[17]);
-            pinMode(17, OUTPUT);
-            pinMode(17, FUNCTION_6);
-#endif
-        }
-
-#if CONFIG_ETH_RMII_CLK_INPUT
-        EMAC_EXT.ex_clk_ctrl.ext_en = 0;
-        EMAC_EXT.ex_clk_ctrl.int_en = 1;
-        EMAC_EXT.ex_oscclk_conf.clk_sel = 0;
-        emac_config_apll_clock();
-        EMAC_EXT.ex_clkout_conf.div_num = 0;
-        EMAC_EXT.ex_clkout_conf.h_div_num = 0;
-#endif
-    }
-#endif
-
-    return ESP_OK;
-}
-
-#if CONFIG_ETH_RMII_CLK_INPUT
-void emac_config_apll_clock()
-{
-    constexpr auto rtc_clk_apll_enable = [](bool enable, uint32_t sdm0, uint32_t sdm1, uint32_t sdm2, uint32_t o_div){
-        rtc_clk_apll_coeff_set(o_div, sdm0, sdm1, sdm2);
-        ::rtc_clk_apll_enable(enable);
-    };
-
-    /* apll_freq = xtal_freq * (4 + sdm2 + sdm1/256 + sdm0/65536)/((o_div + 2) * 2) */
-    rtc_xtal_freq_t rtc_xtal_freq = rtc_clk_xtal_freq_get();
-    switch (rtc_xtal_freq)
-    {
-    case RTC_XTAL_FREQ_40M: // Recommended
-        /* 50 MHz = 40MHz * (4 + 6) / (2 * (2 + 2) = 50.000 */
-        /* sdm0 = 0, sdm1 = 0, sdm2 = 6, o_div = 2 */
-        rtc_clk_apll_enable(true, 0, 0, 6, 2);
-        break;
-    case RTC_XTAL_FREQ_26M:
-        /* 50 MHz = 26MHz * (4 + 15 + 118 / 256 + 39/65536) / ((3 + 2) * 2) = 49.999992 */
-        /* sdm0 = 39, sdm1 = 118, sdm2 = 15, o_div = 3 */
-        rtc_clk_apll_enable(true, 39, 118, 15, 3);
-        break;
-    case RTC_XTAL_FREQ_24M:
-        /* 50 MHz = 24MHz * (4 + 12 + 255 / 256 + 255/65536) / ((2 + 2) * 2) = 49.499977 */
-        /* sdm0 = 255, sdm1 = 255, sdm2 = 12, o_div = 2 */
-        rtc_clk_apll_enable(true, 255, 255, 12, 2);
-        break;
-    default: // Assume we have a 40M xtal
-        rtc_clk_apll_enable(true, 0, 0, 6, 2);
-        break;
-    }
-}
-#endif
 #endif
 } // namespace
 } // namespace wifi_stack
