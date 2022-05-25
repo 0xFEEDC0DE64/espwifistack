@@ -2234,7 +2234,29 @@ esp_err_t wifi_set_ap_ip(const config &config, const static_ip_config &ip)
                                                        ESP_NETIF_REQUESTED_IP_ADDRESS,
                                                        &lease, sizeof(dhcps_lease_t)); result != ESP_OK)
         {
-            ESP_LOGE(TAG, "esp_netif_dhcps_option() failed with %s", esp_err_to_name(result));
+            ESP_LOGE(TAG, "esp_netif_dhcps_option() REQUESTED_IP_ADDRESS failed with %s", esp_err_to_name(result));
+            return result;
+        }
+    }
+
+    {
+        dhcps_offer_t dhcps_flag_false = 0;
+
+        if (const auto result = esp_netif_dhcps_option(esp_netifs[ESP_IF_WIFI_AP],
+                                                       ESP_NETIF_OP_SET,
+                                                       ESP_NETIF_ROUTER_SOLICITATION_ADDRESS,
+                                                       &dhcps_flag_false, sizeof(dhcps_flag_false)); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "esp_netif_dhcps_option() ROUTER_SOLICITATION_ADDRESS failed with %s", esp_err_to_name(result));
+            return result;
+        }
+
+        if (const auto result = esp_netif_dhcps_option(esp_netifs[ESP_IF_WIFI_AP],
+                                                       ESP_NETIF_OP_SET,
+                                                       ESP_NETIF_DOMAIN_NAME_SERVER,
+                                                       &dhcps_flag_false, sizeof(dhcps_flag_false)); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "esp_netif_dhcps_option() DOMAIN_NAME_SERVER failed with %s", esp_err_to_name(result));
             return result;
         }
     }
