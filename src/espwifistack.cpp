@@ -9,6 +9,7 @@
 #include <queue>
 #include <functional>
 #include <atomic>
+#include <utility>
 
 // esp-idf includes
 #include <esp_log.h>
@@ -43,7 +44,6 @@
 #include <tickchrono.h>
 #include <cpputils.h>
 #include <cleanuphelper.h>
-#include <futurecpp.h>
 
 using namespace std::chrono_literals;
 
