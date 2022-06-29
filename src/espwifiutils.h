@@ -94,7 +94,7 @@ public:
     constexpr const uint8_t &operator[](int index) const noexcept { return _bytes[index]; }
 
     // Overloaded copy operators to allow initialisation of ip_address_t objects from other types
-    constexpr ip_address_t& operator=(const ip_address_t &other) noexcept { _value = other._value; return *this; }
+    //constexpr ip_address_t& operator=(const ip_address_t &other) noexcept { _value = other._value; return *this; }
     constexpr ip_address_t& operator=(std::array<uint8_t, 4> bytes) noexcept { _bytes = bytes; return *this; }
     constexpr ip_address_t& operator=(value_t value) noexcept { _value = value; return *this; }
 };
