@@ -9,6 +9,7 @@
 #include <esp_log.h>
 
 // 3rdparty lib includes
+#include <futurecpp.h>
 #include <fmt/core.h>
 
 namespace wifi_stack {

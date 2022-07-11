@@ -11,6 +11,7 @@
 
 // 3rdparty lib includes
 #include <fmt/core.h>
+#include <futurecpp.h>
 
 // local includes
 #include "espwifistack.h"
