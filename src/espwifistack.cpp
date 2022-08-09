@@ -122,6 +122,7 @@ uint8_t _wifiConnectFailCounter{};
 
 std::optional<StaError> _last_sta_error;
 std::string _last_sta_error_message;
+std::optional<espchrono::millis_clock::time_point> _last_wifi_connect_failed;
 
 // scan
 std::optional<espchrono::millis_clock::time_point> scanStarted;
@@ -147,6 +148,7 @@ const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedToConne
 const bool &esp_wifi_started{_esp_wifi_started};
 const uint8_t &sta_error_count{_wifiConnectFailCounter};
 const std::string &last_sta_error_message{_last_sta_error_message};
+const std::optional<espchrono::millis_clock::time_point> &last_wifi_connect_failed{_last_wifi_connect_failed};
 const std::optional<StaError> &last_sta_error{_last_sta_error};
 const std::vector<mac_t> &pastConnectPlan{_pastConnectPlan};
 const mac_t &currentConnectPlanEntry{_currentConnectPlanEntry};
@@ -563,7 +565,7 @@ void update(const config &config)
             }
             else if (_wifiConnectFailFlag && espchrono::ago(*_wifiConnectFailFlag) < 5s)
             {
-                ESP_LOGI(TAG, "clearing connect fail flag");
+                ESP_LOGD(TAG, "clearing connect fail flag");
                 _wifiConnectFailFlag = std::nullopt;
 
                 if (auto newConnectPlanWifisChecksum = calculateWifisChecksum(*config.sta);
@@ -1372,7 +1374,8 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
             const auto sta_status = get_sta_status();
             if (sta_status != WiFiStaStatus::DISCONNECTING)
             {
-                ESP_LOGW(TAG, "setting fail flag");
+                ESP_LOGD(TAG, "setting fail flag");
+                _last_wifi_connect_failed = espchrono::millis_clock::now();
                 _wifiConnectFailFlag = espchrono::millis_clock::now();
             }
             switch (sta_status)

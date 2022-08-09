@@ -50,6 +50,8 @@ extern const bool &esp_wifi_started;
 extern const uint8_t &sta_error_count;
 extern const std::string &last_sta_error_message;
 
+extern const std::optional<espchrono::millis_clock::time_point> &last_wifi_connect_failed;
+
 struct StaError
 {
     espchrono::millis_clock::time_point timestamp{espchrono::millis_clock::now()};
