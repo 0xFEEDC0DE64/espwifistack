@@ -1199,6 +1199,10 @@ wifi_config_t make_ap_config(const ap_config &ap_config)
 
         if (!ap_config.key.empty() && ap_config.authmode != WIFI_AUTH_OPEN)
         {
+            if (ap_config.authmode == WIFI_AUTH_WPA2_PSK ||
+                ap_config.authmode == WIFI_AUTH_WPA_WPA2_PSK) {
+                wifi_config.ap.pairwise_cipher = WIFI_CIPHER_TYPE_TKIP_CCMP;
+            }
             wifi_config.ap.authmode = ap_config.authmode;
             copyStrToBuf(wifi_config.ap.password, ap_config.key);
         }
