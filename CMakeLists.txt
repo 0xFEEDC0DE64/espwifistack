@@ -16,6 +16,7 @@ set(dependencies
     esp_common
     esp_netif
     lwip
+    esp_wifi
 
     cpputils
     espchrono
