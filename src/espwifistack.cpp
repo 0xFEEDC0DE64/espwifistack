@@ -1589,7 +1589,7 @@ void wifi_event_cb(void* arg, esp_event_base_t event_base, int32_t event_id, voi
         ESP_LOGI(TAG, "event_base=%s event_id=%s", event_base, "WIFI_EVENT_SCAN_DONE");
 
         const wifi_event_sta_scan_done_t &event = *(const wifi_event_sta_scan_done_t *)event_data;
-        ESP_LOGI(TAG, "SCAN Done: ID: %u, Status: %u, Results: %u", event.scan_id, event.status, event.number);
+        ESP_LOGI(TAG, "SCAN Done: ID: %i, Status: %lu, Results: %i", event.scan_id, event.status, event.number);
 
         wifi_event->event_id = WifiEventId::WIFI_SCAN_DONE;
         wifi_event->wifi_scan_done = event;
@@ -1840,7 +1840,7 @@ void wifi_event_cb(void* arg, esp_event_base_t event_base, int32_t event_id, voi
     }
 #endif
     else
-        ESP_LOGW(TAG, "event_base=%s event_id=%i", event_base, event_id);
+        ESP_LOGW(TAG, "event_base=%s event_id=%li", event_base, event_id);
 
     if (wifi_event->event_id < WifiEventId::MAX)
         wifi_post_event(std::move(wifi_event));
