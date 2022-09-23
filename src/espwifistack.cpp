@@ -264,8 +264,8 @@ esp_err_t wifi_set_ap_config(const ap_config &ap_config);
 void set_sta_status(WiFiStaStatus status);
 void wifi_scan_done();
 esp_err_t wifi_sta_disconnect(const config &config, bool eraseap = false);
-esp_err_t wifi_sta_begin(const config &config, const sta_config &sta_config, const wifi_entry &wifi_entry,
-                         int32_t channel = 0, std::optional<mac_t> bssid = {}, bool connect = true);
+esp_err_t wifi_sta_begin(const config &config, const sta_config &sta_config, std::string_view ssid,
+                         const wifi_entry &wifi_entry, int32_t channel = 0, std::optional<mac_t> bssid = {}, bool connect = true);
 esp_err_t wifi_sta_restart(const config &config);
 void wifi_event_callback(const config &config, const WifiEvent &event);
 esp_err_t wifi_post_event(std::unique_ptr<const WifiEvent> event);
@@ -2311,8 +2311,8 @@ wifi_config_t make_sta_config(std::string_view ssid, std::string_view password, 
     return wifi_config;
 }
 
-esp_err_t wifi_sta_begin(const config &config, const sta_config &sta_config, const wifi_entry &wifi_entry,
-                         int32_t channel, std::optional<mac_t> bssid, bool connect)
+esp_err_t wifi_sta_begin(const config &config, const sta_config &sta_config, std::string_view ssid,
+                         const wifi_entry &wifi_entry, int32_t channel, std::optional<mac_t> bssid, bool connect)
 {
     if (!(get_wifi_mode() & WIFI_MODE_STA))
     {
@@ -2347,7 +2347,7 @@ esp_err_t wifi_sta_begin(const config &config, const sta_config &sta_config, con
         }
     }
 
-    wifi_config_t conf = make_sta_config(wifi_entry.ssid, wifi_entry.key, sta_config.min_rssi, bssid, channel);
+    wifi_config_t conf = make_sta_config(ssid, wifi_entry.key, sta_config.min_rssi, bssid, channel);
 
     wifi_config_t current_conf;
     if (const auto result = esp_wifi_get_config(WIFI_IF_STA, &current_conf); result != ESP_OK)
@@ -2628,7 +2628,7 @@ bool nextConnectPlanItem(const config &config, const sta_config &sta_config, con
     const std::string_view ssid{reinterpret_cast<const char *>(scanResultIter->ssid)};
 
     const auto configIter = std::find_if(std::begin(sta_config.wifis), std::end(sta_config.wifis),
-                                         [ssid](const wifi_entry &entry){ return entry.ssid == ssid; });
+                                         [ssid](const wifi_entry &entry){ return cpputils::stringEqualsIgnoreCase(entry.ssid, ssid); });
 
     if (configIter == std::end(sta_config.wifis))
     {
@@ -2648,7 +2648,7 @@ bool nextConnectPlanItem(const config &config, const sta_config &sta_config, con
 
     ESP_LOGI(TAG, "resetting wifi connect fail counter");
     _wifiConnectFailCounter = 0;
-    if (const auto result = wifi_sta_begin(config, sta_config, *configIter, scanResultIter->primary, mac_t{scanResultIter->bssid}); result != ESP_OK)
+    if (const auto result = wifi_sta_begin(config, sta_config, ssid, *configIter, scanResultIter->primary, mac_t{scanResultIter->bssid}); result != ESP_OK)
         ESP_LOGE(TAG, "wifi_sta_begin() failed with %s", esp_err_to_name(result));
     setWifiState(WiFiState::Connecting);
 
