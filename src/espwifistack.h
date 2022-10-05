@@ -57,8 +57,7 @@ struct StaError
     espchrono::millis_clock::time_point timestamp{espchrono::millis_clock::now()};
     std::string ssid;
     mac_t bssid;
-    uint8_t reason;
-    const char *reasonStr;
+    wifi_err_reason_t reason;
 };
 extern const std::optional<StaError> &last_sta_error;
 

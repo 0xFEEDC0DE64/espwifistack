@@ -24,6 +24,7 @@ std::string toString(wifi_auth_mode_t authMode);
 std::string toString(wifi_cipher_type_t cipherType);
 std::string toString(esp_interface_t interface);
 std::string toString(esp_netif_dhcp_status_t status);
+const char * toString(wifi_err_reason_t reason);
 
 template<typename T> tl::expected<T, std::string> fromString(std::string_view str) = delete;
 
