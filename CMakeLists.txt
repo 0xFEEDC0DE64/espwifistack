@@ -17,6 +17,8 @@ set(dependencies
     esp_netif
     lwip
     esp_wifi
+    driver
+    esp_eth
 
     cpputils
     espchrono

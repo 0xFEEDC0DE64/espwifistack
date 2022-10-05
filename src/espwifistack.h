@@ -12,6 +12,9 @@
 #include <esp_wifi.h>
 #include <esp_wifi_types.h>
 #include <esp_netif_types.h>
+#ifdef CONFIG_ETH_ENABLED
+#include <esp_eth_driver.h>
+#endif
 
 // 3rdparty lib includes
 #include <tl/expected.hpp>
