@@ -239,9 +239,6 @@ struct WifiEvent
     };
 };
 
-const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "UNSPECIFIED", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT", "CONNECTION_FAIL" };
-#define reason2str(r) ((r>176)?system_event_reasons[r-176]:system_event_reasons[r-1])
-
 #ifdef CONFIG_ETH_ENABLED
 //#define ETH_PHY_IP101 ETH_PHY_TLK110
 
@@ -1336,22 +1333,20 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
             event.wifi_sta_disconnected.ssid_len
         };
 
-        const auto reason = event.wifi_sta_disconnected.reason;
+        const auto reason = wifi_err_reason_t(event.wifi_sta_disconnected.reason);
         {
             const mac_t bssid{event.wifi_sta_disconnected.bssid};
-            const char * const reasonStr = reason2str(reason);
 
             _last_sta_error = StaError {
                 .ssid = std::string{ssid},
                 .bssid = bssid,
-                .reason = reason,
-                .reasonStr = reasonStr
+                .reason = reason
             };
 
             auto msg = fmt::format("{} WIFI_STA_DISCONNECTED ssid=\"{}\" bssid={} reason={}({})",
                                    espchrono::millis_clock::now().time_since_epoch().count(),
                                    ssid, toString(bssid),
-                                   reason, reasonStr);
+                                   std::to_underlying(reason), wifi_stack::toString(reason));
             ESP_LOGW(TAG, "%.*s", msg.size(), msg.data());
             _last_sta_error_message += msg;
             _last_sta_error_message += '\n';
