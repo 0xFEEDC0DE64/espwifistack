@@ -1357,7 +1357,7 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
         switch (reason)
         {
         case WIFI_REASON_AUTH_EXPIRE:
-            break;
+//            break;
         case WIFI_REASON_NO_AP_FOUND:
         case WIFI_REASON_AUTH_FAIL:
         case WIFI_REASON_ASSOC_FAIL:
