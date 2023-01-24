@@ -1322,7 +1322,7 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
         wifi_clear_status_bits(STA_STARTED_BIT | STA_CONNECTED_BIT | STA_HAS_IP_BIT | STA_HAS_IP6_BIT);
         break;
     case WifiEventId::WIFI_STA_CONNECTED:
-        set_sta_status(WiFiStaStatus::IDLE_STATUS);
+        set_sta_status(WiFiStaStatus::WAITING_FOR_IP);
         wifi_set_status_bits(STA_CONNECTED_BIT);
         esp_netif_create_ip6_linklocal(esp_netifs[ESP_IF_WIFI_STA]);
         break;
@@ -1376,7 +1376,8 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
             switch (sta_status)
             {
             case WiFiStaStatus::CONNECTED: set_sta_status(WiFiStaStatus::CONNECTION_LOST); break;
-            case WiFiStaStatus::CONNECTING: set_sta_status(WiFiStaStatus::CONNECT_FAILED); break;
+            case WiFiStaStatus::CONNECTING:
+            case WiFiStaStatus::WAITING_FOR_IP: set_sta_status(WiFiStaStatus::CONNECT_FAILED); break;
             case WiFiStaStatus::DISCONNECTING:
             default:
                 set_sta_status(WiFiStaStatus::DISCONNECTED);
