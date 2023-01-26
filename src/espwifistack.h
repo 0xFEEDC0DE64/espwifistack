@@ -105,5 +105,6 @@ tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_netif
 #ifdef CONFIG_ETH_ENABLED
 esp_eth_handle_t getEthHandle();
 bool get_eth_connected();
+bool get_eth_has_ip();
 #endif
 } // namespace wifi_stack

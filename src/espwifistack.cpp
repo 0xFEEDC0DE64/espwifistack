@@ -999,6 +999,11 @@ bool get_eth_connected()
 {
     return wifi_get_status_bits() & ETH_CONNECTED_BIT;
 }
+
+bool get_eth_has_ip()
+{
+    return wifi_get_status_bits() & ETH_HAS_IP_BIT;
+}
 #endif
 
 namespace {
