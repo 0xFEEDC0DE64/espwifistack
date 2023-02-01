@@ -177,6 +177,7 @@ const char * toString(wifi_err_reason_t reason)
     case WIFI_REASON_CONNECTION_FAIL:                    return "CONNECTION_FAIL";
     case WIFI_REASON_AP_TSF_RESET:                       return "AP_TSF_RESET";
     case WIFI_REASON_ROAMING:                            return "ROAMING";
+    case WIFI_REASON_ASSOC_COMEBACK_TIME_TOO_LONG:       return "ASSOC_COMEBACK_TIME_TOO_LONG";
     }
 
     ESP_LOGE(TAG, "unknown reason %" PRIu8, reason);
