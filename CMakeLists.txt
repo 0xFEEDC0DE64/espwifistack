@@ -20,6 +20,7 @@ set(dependencies
     driver
     esp_eth
 
+    cxx-ring-buffer
     cpputils
     espchrono
     espcpputils

@@ -120,8 +120,8 @@ std::atomic<WiFiStaStatus> _sta_status{WiFiStaStatus::NO_SHIELD};
 std::optional<espchrono::millis_clock::time_point> _wifiConnectFailFlag;
 uint8_t _wifiConnectFailCounter{};
 
-std::optional<StaError> _last_sta_error;
-std::string _last_sta_error_message;
+std::optional<sta_error_t> _last_sta_error;
+ring_buffer<sta_error_t, 5> _last_sta_errors;
 std::optional<espchrono::millis_clock::time_point> _last_wifi_connect_failed;
 
 // scan
@@ -147,9 +147,9 @@ const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedFromCon
 const std::optional<espchrono::millis_clock::time_point> &lastStaSwitchedToConnected{_lastStaSwitchedToConnected};
 const bool &esp_wifi_started{_esp_wifi_started};
 const uint8_t &sta_error_count{_wifiConnectFailCounter};
-const std::string &last_sta_error_message{_last_sta_error_message};
+const ring_buffer<sta_error_t, 5> &last_sta_errors{_last_sta_errors};
 const std::optional<espchrono::millis_clock::time_point> &last_wifi_connect_failed{_last_wifi_connect_failed};
-const std::optional<StaError> &last_sta_error{_last_sta_error};
+const std::optional<sta_error_t> &last_sta_error{_last_sta_error};
 const std::vector<mac_t> &pastConnectPlan{_pastConnectPlan};
 const mac_t &currentConnectPlanEntry{_currentConnectPlanEntry};
 const std::vector<mac_t> &connectPlan{_connectPlan};
@@ -773,6 +773,14 @@ void update(const config &config)
 #endif
 }
 
+std::string sta_error_t::toString() const
+{
+    return fmt::format("{} WIFI_STA_DISCONNECTED ssid=\"{}\" bssid={} reason={}({})",
+                       timestamp.time_since_epoch().count(),
+                       ssid, wifi_stack::toString(bssid),
+                       std::to_underlying(reason), wifi_stack::toString(reason));
+}
+
 wifi_mode_t get_wifi_mode()
 {
     if (!_lowLevelInitDone || !_esp_wifi_started)
@@ -1342,21 +1350,19 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
         {
             const mac_t bssid{event.wifi_sta_disconnected.bssid};
 
-            _last_sta_error = StaError {
+            _last_sta_error = sta_error_t {
+                .timestamp = espchrono::millis_clock::now(),
                 .ssid = std::string{ssid},
                 .bssid = bssid,
                 .reason = reason
             };
 
-            auto msg = fmt::format("{} WIFI_STA_DISCONNECTED ssid=\"{}\" bssid={} reason={}({})",
-                                   espchrono::millis_clock::now().time_since_epoch().count(),
-                                   ssid, toString(bssid),
-                                   std::to_underlying(reason), wifi_stack::toString(reason));
-            ESP_LOGW(TAG, "%.*s", msg.size(), msg.data());
-            _last_sta_error_message += msg;
-            _last_sta_error_message += '\n';
-            if (_last_sta_error_message.size() > 512)
-                _last_sta_error_message = _last_sta_error_message.substr(_last_sta_error_message.size() - 512, 512);
+            {
+                auto msg = _last_sta_error->toString();
+                ESP_LOGW(TAG, "%.*s", msg.size(), msg.data());
+            }
+
+            _last_sta_errors.push_back(*_last_sta_error);
         }
 
         switch (reason)

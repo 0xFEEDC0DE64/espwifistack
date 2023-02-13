@@ -20,6 +20,7 @@
 #include <tl/expected.hpp>
 #include <espchrono.h>
 #include <cppsignal.h>
+#include <ring-buffer.h>
 
 // local includes
 #include "espwifistackconfig.h"
@@ -51,18 +52,19 @@ void update(const config &config);
 extern const bool &esp_wifi_started;
 
 extern const uint8_t &sta_error_count;
-extern const std::string &last_sta_error_message;
-
-extern const std::optional<espchrono::millis_clock::time_point> &last_wifi_connect_failed;
-
-struct StaError
-{
-    espchrono::millis_clock::time_point timestamp{espchrono::millis_clock::now()};
+struct sta_error_t {
+    espchrono::millis_clock::time_point timestamp;
     std::string ssid;
     mac_t bssid;
     wifi_err_reason_t reason;
+
+    std::string toString() const;
 };
-extern const std::optional<StaError> &last_sta_error;
+extern const ring_buffer<sta_error_t, 5> &last_sta_errors;
+
+extern const std::optional<espchrono::millis_clock::time_point> &last_wifi_connect_failed;
+
+extern const std::optional<sta_error_t> &last_sta_error;
 
 extern const std::vector<mac_t> &pastConnectPlan;
 extern const mac_t &currentConnectPlanEntry;
