@@ -35,6 +35,14 @@
 #include <soc/io_mux_reg.h>
 #endif
 
+#ifdef CONFIG_PPP_SUPPORT
+#include <cxx_include/esp_modem_dce_module.hpp>
+#include <cxx_include/esp_modem_dte.hpp>
+#include <esp_modem_config.h>
+#include <cxx_include/esp_modem_api.hpp>
+#include <esp_netif_defaults.h>
+#endif
+
 // 3rdparty lib includes
 #include <fmt/core.h>
 #include <strutils.h>
@@ -287,6 +295,9 @@ void handleWifiEvents(const config &config, TickType_t xTicksToWait);
 #ifdef CONFIG_ETH_ENABLED
 tl::expected<void, std::string> eth_begin(const config &config, const eth_config &eth);
 #endif
+#ifdef CONFIG_PPP_SUPPORT
+esp_err_t modem_init();
+#endif
 } // namespace
 
 void init(const config &config)
@@ -318,6 +329,10 @@ void init(const config &config)
             ESP_LOGE(TAG, "eth_begin() failed with %.*s", result.error().size(), result.error().data());
         _eth_init_status = std::move(result);
     }
+#endif
+
+#ifdef CONFIG_PPP_SUPPORT
+    modem_init();
 #endif
 
     if (config.ap)
@@ -2810,6 +2825,105 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
     }
 
     return {};
+}
+#endif
+
+#ifdef CONFIG_PPP_SUPPORT
+esp_err_t modem_init()
+{
+    /* Configure and create the DTE */
+    esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
+    /* setup UART specific configuration based on kconfig options */
+    dte_config.uart_config.baud_rate = 9600;
+    dte_config.uart_config.tx_io_num = 17;
+    dte_config.uart_config.rx_io_num = 4;
+    //dte_config.uart_config.rts_io_num = ;
+    //dte_config.uart_config.cts_io_num = ;
+    dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_NONE; //ESP_MODEM_FLOW_CONTROL_NONE, ESP_MODEM_FLOW_CONTROL_SW, ESP_MODEM_FLOW_CONTROL_HW
+
+    auto dte = esp_modem::create_uart_dte(&dte_config);
+    if (!dte)
+    {
+        ESP_LOGE(TAG, "create_uart_dte() failed");
+        return ESP_FAIL;
+    }
+
+    /* Configure the DCE */
+    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG("gprsinternet");
+
+    /* Configure the PPP netif */
+    esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
+
+    /* Create the PPP and DCE objects */
+    esp_netif_t *esp_netif = esp_netif_new(&netif_ppp_config);
+    if (!esp_netif)
+    {
+        ESP_LOGE(TAG, "esp_netif_new() failed");
+        return ESP_FAIL;
+    }
+
+    auto dce = esp_modem::create_BG96_dce(&dce_config, dte, esp_netif);
+    if (!dce)
+    {
+        ESP_LOGE(TAG, "create_SIM800_dce() failed");
+        return ESP_FAIL;
+    }
+
+    if (dte_config.uart_config.flow_control == ESP_MODEM_FLOW_CONTROL_HW)
+    {
+        if (esp_modem::command_result::OK != dce->set_flow_control(2, 2))
+        {
+            ESP_LOGE(TAG, "Failed to set the set_flow_control mode");
+            return ESP_FAIL;
+        }
+        ESP_LOGI(TAG, "set_flow_control OK");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "not set_flow_control, because 2-wire mode active.");
+    }
+
+    again:
+    if (dce->set_mode(esp_modem::modem_mode::CMUX_MODE))
+    {
+        ESP_LOGI(TAG, "Modem has correctly entered multiplexed command/data mode");
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to configure multiplexed command mode... exiting");
+
+        goto again;
+
+        //return ESP_FAIL;
+    }
+
+    std::string str;
+    esp_modem::command_result result;
+    while ((result = dce->get_operator_name(str)) != esp_modem::command_result::OK)
+    {
+        ESP_LOGW(TAG, "get_operator_name() failed with %i", std::to_underlying(result));
+        // Getting operator name could fail... retry after 500 ms
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    ESP_LOGI(TAG, "Operator name: %s", str.c_str());
+
+    /* Again reading some data from the modem */
+    if ((result = dce->get_imei(str)) == esp_modem::command_result::OK)
+    {
+        ESP_LOGI(TAG, "IMEI: %s", str.c_str());
+    }
+    else
+        ESP_LOGW(TAG, "get_imei() failed with %i", std::to_underlying(result));
+
+    /* Again reading some data from the modem */
+    if ((result = dce->get_imsi(str)) == esp_modem::command_result::OK)
+    {
+        ESP_LOGI(TAG, "IMSI: %s", str.c_str());
+    }
+    else
+        ESP_LOGW(TAG, "get_imsi() failed with %i", std::to_underlying(result));
+
+    return ESP_OK;
 }
 #endif
 } // namespace
