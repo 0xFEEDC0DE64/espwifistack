@@ -184,14 +184,14 @@ const char * toString(wifi_err_reason_t reason)
     return "UNKNOWN";
 }
 
-template<> tl::expected<mac_t, std::string> fromString<mac_t>(std::string_view str)
+template<> std::expected<mac_t, std::string> fromString<mac_t>(std::string_view str)
 {
-    mac_t result;
+    mac_t result{};
     if (std::sscanf(str.data(), "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
                     &result[0], &result[1], &result[2], &result[3], &result[4], &result[5]) == 6)
         return result;
 
-    return tl::make_unexpected(fmt::format("invalid format ({})", str));
+    return std::unexpected(fmt::format("invalid format ({})", str));
 }
 
 std::string toString(const mac_t &val)
@@ -205,7 +205,7 @@ std::string toString(const std::optional<mac_t> &val)
     return val ? toString(*val) : "nullopt";
 }
 
-template<> tl::expected<ip_address_t, std::string> fromString<ip_address_t>(std::string_view str)
+template<> std::expected<ip_address_t, std::string> fromString<ip_address_t>(std::string_view str)
 {
     // TODO: add support for "a", "a.b", "a.b.c" formats
     // TODO: replace with scanf for better performance
@@ -221,22 +221,22 @@ template<> tl::expected<ip_address_t, std::string> fromString<ip_address_t>(std:
         {
             acc = acc * 10 + (c - '0');
             if (acc > 255)
-                return tl::make_unexpected("Value out of [0..255] range");
+                return std::unexpected("Value out of [0..255] range");
         }
         else if (c == '.')
         {
             if (dots == 3)
-                return tl::make_unexpected("Too many dots (there must be 3 dots)");
+                return std::unexpected("Too many dots (there must be 3 dots)");
 
             result[dots++] = acc;
             acc = 0;
         }
         else
-            return tl::make_unexpected("Invalid char");
+            return std::unexpected("Invalid char");
     }
 
     if (dots != 3)
-        return tl::make_unexpected("Too few dots (there must be 3 dots)");
+        return std::unexpected("Too few dots (there must be 3 dots)");
 
     result[3] = acc;
 

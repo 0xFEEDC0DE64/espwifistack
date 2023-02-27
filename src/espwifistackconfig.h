@@ -21,7 +21,7 @@
 
 inline bool operator==(const wifi_country_t &left, const wifi_country_t &right)
 {
-    return left.cc == right.cc &&
+    return std::equal(std::begin(left.cc), std::end(left.cc), std::begin(right.cc)) &&
            left.schan == right.schan &&
            left.nchan == right.nchan &&
            left.max_tx_power == right.max_tx_power &&

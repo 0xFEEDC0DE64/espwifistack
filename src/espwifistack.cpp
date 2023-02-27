@@ -144,7 +144,7 @@ mac_t _currentConnectPlanEntry;
 std::vector<mac_t> _connectPlan;
 
 #ifdef CONFIG_ETH_ENABLED
-std::optional<tl::expected<void, std::string>> _eth_init_status;
+std::optional<std::expected<void, std::string>> _eth_init_status;
 #endif
 
 } // namespace
@@ -163,7 +163,7 @@ const mac_t &currentConnectPlanEntry{_currentConnectPlanEntry};
 const std::vector<mac_t> &connectPlan{_connectPlan};
 
 #ifdef CONFIG_ETH_ENABLED
-const std::optional<tl::expected<void, std::string>> &eth_init_status{_eth_init_status};
+const std::optional<std::expected<void, std::string>> &eth_init_status{_eth_init_status};
 #endif
 
 namespace {
@@ -280,8 +280,8 @@ esp_err_t wifi_low_level_init(const config &config);
 esp_err_t wifi_start();
 esp_err_t wifi_low_level_deinit();
 esp_err_t wifi_stop();
-tl::expected<void, std::string> applyBaseMac(const mac_t &mac);
-tl::expected<mac_t, std::string> expectedBaseMac(const config &config);
+std::expected<void, std::string> applyBaseMac(const mac_t &mac);
+std::expected<mac_t, std::string> expectedBaseMac(const config &config);
 esp_err_t wifi_set_ap_ip(const config &config, const static_ip_config &ip);
 wifi_config_t make_sta_config(std::string_view ssid, std::string_view password, int8_t min_rssi,
                               std::optional<mac_t> bssid, uint8_t channel);
@@ -293,7 +293,7 @@ bool nextConnectPlanItem(const config &config, const sta_config &sta_config);
 bool nextConnectPlanItem(const config &config, const sta_config &sta_config, const scan_result &scanResult);
 void handleWifiEvents(const config &config, TickType_t xTicksToWait);
 #ifdef CONFIG_ETH_ENABLED
-tl::expected<void, std::string> eth_begin(const config &config, const eth_config &eth);
+std::expected<void, std::string> eth_begin(const config &config, const eth_config &eth);
 #endif
 #ifdef CONFIG_PPP_SUPPORT
 esp_err_t modem_init();
@@ -816,13 +816,13 @@ WiFiStaStatus get_sta_status()
     return _sta_status.load();
 }
 
-tl::expected<void, std::string> begin_scan(const sta_config &sta_config)
+std::expected<void, std::string> begin_scan(const sta_config &sta_config)
 {
     if (!(get_wifi_mode() & WIFI_MODE_STA))
-        return tl::make_unexpected("STA mode missing");
+        return std::unexpected("STA mode missing");
 
     if (wifi_get_status_bits() & WIFI_SCANNING_BIT)
-        return tl::make_unexpected("already scanning");
+        return std::unexpected("already scanning");
 
     delete_scan_result();
 
@@ -850,10 +850,10 @@ tl::expected<void, std::string> begin_scan(const sta_config &sta_config)
         scanTimeout = time.max_per_chan * 20;
     }
     else
-        return tl::make_unexpected("invalid scan settings (not active nor passive)!");
+        return std::unexpected("invalid scan settings (not active nor passive)!");
 
     if (const auto result = esp_wifi_scan_start(&scan_config, false) != ESP_OK)
-        return tl::make_unexpected(fmt::format("esp_wifi_scan_start() failed with: {}", esp_err_to_name(result)));
+        return std::unexpected(fmt::format("esp_wifi_scan_start() failed with: {}", esp_err_to_name(result)));
 
     scanStarted = espchrono::millis_clock::now();
 
@@ -901,7 +901,7 @@ void delete_scan_result()
     }
 }
 
-tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info()
+std::expected<wifi_ap_record_t, std::string> get_sta_ap_info()
 {
     wifi_ap_record_t info;
     if (const auto result = esp_wifi_sta_get_ap_info(&info); result == ESP_OK)
@@ -909,7 +909,7 @@ tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info()
     else
     {
         ESP_LOGW(TAG, "esp_wifi_sta_get_ap_info() failed with %s", esp_err_to_name(result));
-        return tl::make_unexpected(fmt::format("esp_wifi_sta_get_ap_info() failed with {}", esp_err_to_name(result)));
+        return std::unexpected(fmt::format("esp_wifi_sta_get_ap_info() failed with {}", esp_err_to_name(result)));
     }
 }
 
@@ -921,7 +921,7 @@ mac_or_error get_mac_addr(wifi_interface_t ifx)
     else
     {
         ESP_LOGW(TAG, "esp_wifi_get_mac() failed with %s", esp_err_to_name(result));
-        return tl::make_unexpected(fmt::format("esp_wifi_get_mac() failed with {}", esp_err_to_name(result)));
+        return std::unexpected(fmt::format("esp_wifi_get_mac() failed with {}", esp_err_to_name(result)));
     }
 }
 
@@ -934,7 +934,7 @@ mac_or_error get_default_mac_addr()
         else
         {
             //ESP_LOGE(TAG, "esp_efuse_mac_get_default() failed with %s", esp_err_to_name(result));
-            return tl::make_unexpected(fmt::format("esp_efuse_mac_get_default() failed with {}", esp_err_to_name(result)));
+            return std::unexpected(fmt::format("esp_efuse_mac_get_default() failed with {}", esp_err_to_name(result)));
         }
     }();
 
@@ -950,7 +950,7 @@ mac_or_error get_custom_mac_addr()
         else
         {
             //ESP_LOGE(TAG, "esp_efuse_mac_get_custom() failed with %s", esp_err_to_name(result));
-            return tl::make_unexpected(fmt::format("esp_efuse_mac_get_custom() failed with {}", esp_err_to_name(result)));
+            return std::unexpected(fmt::format("esp_efuse_mac_get_custom() failed with {}", esp_err_to_name(result)));
         }
     }();
 
@@ -965,22 +965,22 @@ mac_or_error get_base_mac_addr()
     else
     {
         ESP_LOGE(TAG, "esp_base_mac_addr_get() failed with %s", esp_err_to_name(result));
-        return tl::make_unexpected(fmt::format("esp_base_mac_addr_get() failed with {}", esp_err_to_name(result)));
+        return std::unexpected(fmt::format("esp_base_mac_addr_get() failed with {}", esp_err_to_name(result)));
     }
 }
 
-tl::expected<void, std::string> set_base_mac_addr(mac_t mac_addr)
+std::expected<void, std::string> set_base_mac_addr(mac_t mac_addr)
 {
     if (const auto result = esp_base_mac_addr_set(std::cbegin(mac_addr)); result == ESP_OK)
         return {};
     else
     {
         ESP_LOGE(TAG, "esp_base_mac_addr_set() failed with %s", esp_err_to_name(result));
-        return tl::make_unexpected(fmt::format("esp_base_mac_addr_set() failed with {}", esp_err_to_name(result)));
+        return std::unexpected(fmt::format("esp_base_mac_addr_set() failed with {}", esp_err_to_name(result)));
     }
 }
 
-tl::expected<esp_netif_ip_info_t, std::string> get_ip_info(esp_netif_t *esp_netif)
+std::expected<esp_netif_ip_info_t, std::string> get_ip_info(esp_netif_t *esp_netif)
 {
     esp_netif_ip_info_t ip;
     if (const auto result = esp_netif_get_ip_info(esp_netif, &ip); result == ESP_OK)
@@ -988,26 +988,26 @@ tl::expected<esp_netif_ip_info_t, std::string> get_ip_info(esp_netif_t *esp_neti
     else
     {
         ESP_LOGE(TAG, "esp_netif_get_ip_info() failed with %s", esp_err_to_name(result));
-        return tl::make_unexpected(fmt::format("tcpip_adapter_get_ip_info() failed with {}", esp_err_to_name(result)));
+        return std::unexpected(fmt::format("tcpip_adapter_get_ip_info() failed with {}", esp_err_to_name(result)));
     }
 }
 
-tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_interface_t interf)
+std::expected<std::string_view, std::string> get_hostname_for_interface(esp_interface_t interf)
 {
     if (const auto netif = esp_netifs[interf])
         return get_hostname_for_interface(netif);
     else
-        return tl::make_unexpected(fmt::format("netif for {} is invalid", std::to_underlying(interf)));
+        return std::unexpected(fmt::format("netif for {} is invalid", std::to_underlying(interf)));
 }
 
-tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_netif_t *esp_netif)
+std::expected<std::string_view, std::string> get_hostname_for_interface(esp_netif_t *esp_netif)
 {
     const char *hostname{};
     if (const auto result = esp_netif_get_hostname(esp_netif, &hostname))
-        return tl::make_unexpected(fmt::format("esp_netif_get_hostname() failed with {}", esp_err_to_name(result)));
+        return std::unexpected(fmt::format("esp_netif_get_hostname() failed with {}", esp_err_to_name(result)));
 
     if (!hostname)
-        return tl::make_unexpected("esp_netif_get_hostname() returned a nullptr string");
+        return std::unexpected("esp_netif_get_hostname() returned a nullptr string");
 
     return std::string_view{hostname};
 }
@@ -2078,7 +2078,7 @@ esp_err_t wifi_stop()
     return ESP_OK;
 }
 
-tl::expected<void, std::string> applyBaseMac(const mac_t &mac)
+std::expected<void, std::string> applyBaseMac(const mac_t &mac)
 {
     if (const auto result = set_base_mac_addr(mac); result)
         return {};
@@ -2086,11 +2086,11 @@ tl::expected<void, std::string> applyBaseMac(const mac_t &mac)
     {
         const auto msg = fmt::format("set_base_mac_addr() {} failed: {}", toString(mac), result.error());
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(msg);
+        return std::unexpected(msg);
     }
 }
 
-tl::expected<mac_t, std::string> expectedBaseMac(const config &config)
+std::expected<mac_t, std::string> expectedBaseMac(const config &config)
 {
     if (config.base_mac_override)
     {
@@ -2111,7 +2111,7 @@ tl::expected<mac_t, std::string> expectedBaseMac(const config &config)
     {
         const auto msg = fmt::format("no base mac fuse or override set and get_default_mac_addr() failed: {}", mac.error());
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(msg);
+        return std::unexpected(msg);
     }
 }
 
@@ -2698,7 +2698,7 @@ void handleWifiEvents(const config &config, TickType_t xTicksToWait)
 }
 
 #ifdef CONFIG_ETH_ENABLED
-tl::expected<void, std::string> eth_begin(const config &config, const eth_config &eth)
+std::expected<void, std::string> eth_begin(const config &config, const eth_config &eth)
 {
     esp_netif_config_t cfg ESP_NETIF_DEFAULT_ETH();
     esp_netif_inherent_config_t newBase = *cfg.base;
@@ -2710,7 +2710,7 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
     {
         auto msg = std::string{"esp_netif_new() failed"};
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
+        return std::unexpected(std::move(msg));
     }
 
     esp_eth_mac_t *eth_mac{};
@@ -2728,7 +2728,7 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
     {
         auto msg = std::string{"esp_eth_mac_new_esp32() failed"};
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
+        return std::unexpected(std::move(msg));
     }
 
     eth_phy_config_t phy_config ETH_PHY_DEFAULT_CONFIG();
@@ -2744,7 +2744,7 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
         {
             auto msg = std::string{"esp_eth_phy_new_lan8720() failed"};
             ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-            return tl::make_unexpected(std::move(msg));
+            return std::unexpected(std::move(msg));
         }
     }
     else
@@ -2754,7 +2754,7 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
         {
             auto msg = std::string{"esp_eth_phy_new_ksz8041() failed"};
             ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-            return tl::make_unexpected(std::move(msg));
+            return std::unexpected(std::move(msg));
         }
     }
 
@@ -2766,14 +2766,14 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
     {
         auto msg = fmt::format("esp_eth_driver_install() failed with {}", esp_err_to_name(result));
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
+        return std::unexpected(std::move(msg));
     }
 
     if (!eth_handle)
     {
         auto msg = std::string{"esp_eth_driver_install() invalid eth_handle"};
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
+        return std::unexpected(std::move(msg));
     }
 
     /* attach Ethernet driver to TCP/IP stack */
@@ -2782,14 +2782,14 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
     {
         auto msg = std::string{"esp_eth_new_netif_glue() failed"};
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
+        return std::unexpected(std::move(msg));
     }
 
     if (const auto result = esp_netif_attach(esp_netifs[ESP_IF_ETH], ptr); result != ESP_OK)
     {
         auto msg = fmt::format("esp_netif_attach() failed with {}", esp_err_to_name(result));
         ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-        return tl::make_unexpected(std::move(msg));
+        return std::unexpected(std::move(msg));
     }
 
     eth_initialized = true;
@@ -2800,7 +2800,7 @@ tl::expected<void, std::string> eth_begin(const config &config, const eth_config
         {
             auto msg = fmt::format("esp_eth_start() failed with {}", esp_err_to_name(result));
             ESP_LOGE(TAG, "%.*s", msg.size(), msg.data());
-            return tl::make_unexpected(std::move(msg));
+            return std::unexpected(std::move(msg));
         }
 
         eth_started = true;

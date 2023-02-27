@@ -6,15 +6,13 @@
 #include <string_view>
 #include <array>
 #include <optional>
+#include <expected>
 
 // esp-idf includes
 #include <esp_wifi_types.h>
 #include <esp_netif_ip_addr.h>
 #include <esp_netif_types.h>
 #include <lwip/ip_addr.h>
-
-// 3rdparty lib includes
-#include <tl/expected.hpp>
 
 namespace wifi_stack {
 bool wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_t& rhs);
@@ -26,7 +24,7 @@ std::string toString(esp_interface_t interface);
 std::string toString(esp_netif_dhcp_status_t status);
 const char * toString(wifi_err_reason_t reason);
 
-template<typename T> tl::expected<T, std::string> fromString(std::string_view str) = delete;
+template<typename T> std::expected<T, std::string> fromString(std::string_view str) = delete;
 
 // A class to make it easier to handle and pass around mac addresses / bssids
 
@@ -49,7 +47,7 @@ public:
     }
 };
 
-template<> tl::expected<mac_t, std::string> fromString<mac_t>(std::string_view str);
+template<> std::expected<mac_t, std::string> fromString<mac_t>(std::string_view str);
 std::string toString(const mac_t &val);
 std::string toString(const std::optional<mac_t> &val);
 
@@ -100,7 +98,7 @@ public:
     constexpr ip_address_t& operator=(value_t value) noexcept { _value = value; return *this; }
 };
 
-template<> tl::expected<ip_address_t, std::string> fromString<ip_address_t>(std::string_view str);
+template<> std::expected<ip_address_t, std::string> fromString<ip_address_t>(std::string_view str);
 std::string toString(ip_address_t val);
 std::string toString(const std::optional<ip_address_t> &val);
 

@@ -38,28 +38,28 @@ UdpSender::~UdpSender()
         close(m_udp_server);
 }
 
-tl::expected<void, std::string> UdpSender::send(esp_interface_t interf, uint16_t port, std::string_view buf)
+std::expected<void, std::string> UdpSender::send(esp_interface_t interf, uint16_t port, std::string_view buf)
 {
     const auto interfPtr = esp_netifs[interf];
     if (!interfPtr)
-        return tl::make_unexpected(fmt::format("esp_netifs[{}] is invalid", std::to_underlying(interf)));
+        return std::unexpected(fmt::format("esp_netifs[{}] is invalid", std::to_underlying(interf)));
 
     return send(interfPtr, port, buf);
 }
 
-tl::expected<void, std::string> UdpSender::send(esp_netif_t *interf, uint16_t port, std::string_view buf)
+std::expected<void, std::string> UdpSender::send(esp_netif_t *interf, uint16_t port, std::string_view buf)
 {
     if (!interf)
-        return tl::make_unexpected("invalid interf");
+        return std::unexpected("invalid interf");
 
     esp_netif_ip_info_t ip;
     if (const auto result = esp_netif_get_ip_info(interf, &ip); result != ESP_OK)
-        return tl::make_unexpected(fmt::format("esp_netif_get_ip_info() failed with {}", esp_err_to_name(result)));
+        return std::unexpected(fmt::format("esp_netif_get_ip_info() failed with {}", esp_err_to_name(result)));
 
     return send(ip, port, buf);
 }
 
-tl::expected<void, std::string> UdpSender::send(const esp_netif_ip_info_t &ip, uint16_t port, std::string_view buf)
+std::expected<void, std::string> UdpSender::send(const esp_netif_ip_info_t &ip, uint16_t port, std::string_view buf)
 {
     struct sockaddr_in recipient;
 
@@ -71,33 +71,33 @@ tl::expected<void, std::string> UdpSender::send(const esp_netif_ip_info_t &ip, u
     return send(recipient, buf);
 }
 
-tl::expected<void, std::string> UdpSender::send(const struct sockaddr_in &recipient, std::string_view buf)
+std::expected<void, std::string> UdpSender::send(const struct sockaddr_in &recipient, std::string_view buf)
 {
     if (!ready())
-        return tl::make_unexpected("initializing failed, not ready to send");
+        return std::unexpected("initializing failed, not ready to send");
 
     if (const ssize_t sent = sendto(m_udp_server, buf.data(), buf.size(), 0, (const struct sockaddr*)&recipient, sizeof(recipient)); sent < 0)
-        return tl::make_unexpected(fmt::format("send failed with {} (errno={})", sent, errno));
+        return std::unexpected(fmt::format("send failed with {} (errno={})", sent, errno));
     else if (sent != buf.size())
-        return tl::make_unexpected(fmt::format("sent bytes does not match, expected={}, sent={}", buf.size(), sent));
+        return std::unexpected(fmt::format("sent bytes does not match, expected={}, sent={}", buf.size(), sent));
 
     return {};
 }
 
-tl::expected<void, std::string> UdpSender::send(const struct sockaddr_in6 &recipient, std::string_view buf)
+std::expected<void, std::string> UdpSender::send(const struct sockaddr_in6 &recipient, std::string_view buf)
 {
     if (!ready())
-        return tl::make_unexpected("initializing failed, not ready to send");
+        return std::unexpected("initializing failed, not ready to send");
 
     if (const ssize_t sent = sendto(m_udp_server, buf.data(), buf.size(), 0, (const struct sockaddr*)&recipient, sizeof(recipient)); sent < 0)
-        return tl::make_unexpected(fmt::format("send failed with {} (errno={})", sent, errno));
+        return std::unexpected(fmt::format("send failed with {} (errno={})", sent, errno));
     else if (sent != buf.size())
-        return tl::make_unexpected(fmt::format("sent bytes does not match, expected={}, sent={}", buf.size(), sent));
+        return std::unexpected(fmt::format("sent bytes does not match, expected={}, sent={}", buf.size(), sent));
 
     return {};
 }
 
-tl::expected<void, std::string> UdpSender::send(ip_addr_t ip, uint16_t port, std::string_view buf)
+std::expected<void, std::string> UdpSender::send(ip_addr_t ip, uint16_t port, std::string_view buf)
 {
     switch (ip.type)
     {
@@ -122,11 +122,11 @@ tl::expected<void, std::string> UdpSender::send(ip_addr_t ip, uint16_t port, std
         return send(recipient, buf);
     }
     default:
-        return tl::make_unexpected(fmt::format("unsupported ip type {}", ip.type));
+        return std::unexpected(fmt::format("unsupported ip type {}", ip.type));
     }
 }
 
-tl::expected<void, std::string> UdpSender::send(esp_ip_addr_t ip, uint16_t port, std::string_view buf)
+std::expected<void, std::string> UdpSender::send(esp_ip_addr_t ip, uint16_t port, std::string_view buf)
 {
     switch (ip.type)
     {
@@ -151,7 +151,7 @@ tl::expected<void, std::string> UdpSender::send(esp_ip_addr_t ip, uint16_t port,
         return send(recipient, buf);
     }
     default:
-        return tl::make_unexpected(fmt::format("unsupported ip type {}", ip.type));
+        return std::unexpected(fmt::format("unsupported ip type {}", ip.type));
     }
 }
 

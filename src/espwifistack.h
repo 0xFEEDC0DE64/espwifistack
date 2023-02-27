@@ -7,6 +7,7 @@
 #include <string_view>
 #include <vector>
 #include <optional>
+#include <expected>
 
 // esp-idf includes
 #include <esp_wifi.h>
@@ -17,7 +18,6 @@
 #endif
 
 // 3rdparty lib includes
-#include <tl/expected.hpp>
 #include <espchrono.h>
 #include <cppsignal.h>
 #include <ring-buffer.h>
@@ -71,7 +71,7 @@ extern const mac_t &currentConnectPlanEntry;
 extern const std::vector<mac_t> &connectPlan;
 
 #ifdef CONFIG_ETH_ENABLED
-extern const std::optional<tl::expected<void, std::string>> &eth_init_status;
+extern const std::optional<std::expected<void, std::string>> &eth_init_status;
 #endif
 
 wifi_mode_t get_wifi_mode();
@@ -80,7 +80,7 @@ wifi_mode_t get_wifi_mode();
 WiFiStaStatus get_sta_status();
 
 //! Tries to begin a new scan, if succeeds clears the old scan result
-tl::expected<void, std::string> begin_scan(const sta_config &sta_config);
+std::expected<void, std::string> begin_scan(const sta_config &sta_config);
 
 //! Tells the status of the currently running scan (finished, ...)
 WiFiScanStatus get_scan_status();
@@ -93,16 +93,16 @@ const std::optional<scan_result> &get_scan_result();
 void delete_scan_result();
 
 //! Util wrappers
-using mac_or_error = tl::expected<mac_t, std::string>;
-tl::expected<wifi_ap_record_t, std::string> get_sta_ap_info();
+using mac_or_error = std::expected<mac_t, std::string>;
+std::expected<wifi_ap_record_t, std::string> get_sta_ap_info();
 mac_or_error get_mac_addr(wifi_interface_t ifx);
 mac_or_error get_default_mac_addr();
 mac_or_error get_custom_mac_addr();
 mac_or_error get_base_mac_addr();
-tl::expected<void, std::string> set_base_mac_addr(mac_t mac_addr);
-tl::expected<esp_netif_ip_info_t, std::string> get_ip_info(esp_netif_t *esp_netif);
-tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_interface_t interf);
-tl::expected<std::string_view, std::string> get_hostname_for_interface(esp_netif_t *esp_netif);
+std::expected<void, std::string> set_base_mac_addr(mac_t mac_addr);
+std::expected<esp_netif_ip_info_t, std::string> get_ip_info(esp_netif_t *esp_netif);
+std::expected<std::string_view, std::string> get_hostname_for_interface(esp_interface_t interf);
+std::expected<std::string_view, std::string> get_hostname_for_interface(esp_netif_t *esp_netif);
 
 #ifdef CONFIG_ETH_ENABLED
 esp_eth_handle_t getEthHandle();
