@@ -121,7 +121,7 @@ esp_netif_t* esp_netifs[ESP_IF_MAX] = {NULL, NULL, NULL};
 namespace {
 bool _lowLevelInitDone = false;
 bool _esp_wifi_started = false;
-wifi_ps_type_t _sleepEnabled = WIFI_PS_MIN_MODEM;
+wifi_ps_type_t _sleepEnabled = WIFI_PS_NONE;
 
 // sta
 std::atomic<WiFiStaStatus> _sta_status{WiFiStaStatus::NO_SHIELD};
