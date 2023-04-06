@@ -678,8 +678,7 @@ void update(const config &config)
                 }
                 else
                 {
-                    if (last_sta_static_ip != iter->static_ip ||
-                        last_sta_static_dns != iter->static_dns)
+                    if (last_sta_static_ip != iter->static_ip)
                     {
                         ESP_LOGI(TAG, "STA static ip/dns config changed, applying new config");
 
@@ -692,14 +691,21 @@ void update(const config &config)
                         {
                             last_sta_static_ip = iter->static_ip;
 
-                            if (const auto result = wifi_set_esp_interface_dns(ESP_IF_WIFI_STA, iter->static_dns); result != ESP_OK)
-                            {
-                                ESP_LOGE(TAG, "wifi_set_esp_interface_dns() for STA failed with %s", esp_err_to_name(result));
-                                //return result;
-                            }
-                            else
-                                last_sta_static_dns = iter->static_dns;
+                            goto setdns;
                         }
+                    }
+
+                    if (last_sta_static_dns != iter->static_dns)
+                    {
+                        ESP_LOGI(TAG, "DNS changed, applying new config");
+                        setdns:
+                        if (const auto result = wifi_set_esp_interface_dns(ESP_IF_WIFI_STA, iter->static_dns); result != ESP_OK)
+                        {
+                            ESP_LOGE(TAG, "wifi_set_esp_interface_dns() for STA failed with %s", esp_err_to_name(result));
+                            //return result;
+                        }
+                        else
+                            last_sta_static_dns = iter->static_dns;
                     }
                 }
             }
@@ -1433,6 +1439,13 @@ void wifi_event_callback(const config &config, const WifiEvent &event)
         );
         set_sta_status(WiFiStaStatus::CONNECTED);
         wifi_set_status_bits(STA_HAS_IP_BIT | STA_CONNECTED_BIT);
+
+        if (const auto result = wifi_set_esp_interface_dns(ESP_IF_WIFI_STA, last_sta_static_dns); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "wifi_set_esp_interface_dns() for STA failed with %s", esp_err_to_name(result));
+            //return result;
+        }
+
         break;
     case WifiEventId::WIFI_STA_LOST_IP:
         ESP_LOGW(TAG, "WIFI_STA_LOST_IP");
