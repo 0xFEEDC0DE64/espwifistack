@@ -325,7 +325,17 @@ void init(const config &config)
     if (config.eth)
     {
         auto result = eth_begin(config, *config.eth);
-        if (!result)
+        if (result)
+        {
+            if (auto netif = esp_netifs[ESP_IF_ETH])
+            {
+                if (const auto result = esp_netif_set_hostname(netif, config.eth->hostname.c_str()); result != ESP_OK)
+                    ESP_LOGE(TAG, "esp_netif_set_hostname() AP \"%s\" failed with %s", config.eth->hostname.c_str(), esp_err_to_name(result));
+            }
+            else
+                ESP_LOGE(TAG, "netif for ETH is invalid");
+        }
+        else
             ESP_LOGE(TAG, "eth_begin() failed with %.*s", result.error().size(), result.error().data());
         _eth_init_status = std::move(result);
     }
@@ -2158,9 +2168,9 @@ esp_err_t wifi_sync_mode(const config &config)
 
     if (config.sta)
     {
-        if (esp_netifs[ESP_IF_WIFI_STA])
+        if (auto netif = esp_netifs[ESP_IF_WIFI_STA])
         {
-            if (const auto result = esp_netif_set_hostname(esp_netifs[ESP_IF_WIFI_STA], config.sta->hostname.c_str()); result != ESP_OK)
+            if (const auto result = esp_netif_set_hostname(netif, config.sta->hostname.c_str()); result != ESP_OK)
                 ESP_LOGE(TAG, "esp_netif_set_hostname() STA \"%s\" failed with %s", config.sta->hostname.c_str(), esp_err_to_name(result));
         }
         else
@@ -2169,9 +2179,9 @@ esp_err_t wifi_sync_mode(const config &config)
 
     if (config.ap)
     {
-        if (esp_netifs[ESP_IF_WIFI_AP])
+        if (auto netif = esp_netifs[ESP_IF_WIFI_AP])
         {
-            if (const auto result = esp_netif_set_hostname(esp_netifs[ESP_IF_WIFI_AP], config.ap->hostname.c_str()); result != ESP_OK)
+            if (const auto result = esp_netif_set_hostname(netif, config.ap->hostname.c_str()); result != ESP_OK)
                 ESP_LOGE(TAG, "esp_netif_set_hostname() AP \"%s\" failed with %s", config.ap->hostname.c_str(), esp_err_to_name(result));
         }
         else
