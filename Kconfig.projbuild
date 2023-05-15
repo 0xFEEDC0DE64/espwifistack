@@ -40,4 +40,8 @@ config WIFI_DUAL_ANT
     bool "Enable dual antenna functionality"
     default false
 
+config WIFI_LOG_WORKAROUND
+    bool "Enable disabled-log bug workaround (by enabling certain log statements)"
+    default false
+
 endmenu

@@ -1,7 +1,11 @@
 #include "espwifistack.h"
 
 #include "sdkconfig.h"
+#ifdef CONFIG_WIFI_LOG_WORKAROUND
+#define LOG_LOCAL_LEVEL ESP_LOG_INFO
+#else
 #define LOG_LOCAL_LEVEL CONFIG_LOG_LOCAL_LEVEL_WIFI_STACK
+#endif
 
 // system includes
 #include <optional>
@@ -52,6 +56,24 @@
 #include <tickchrono.h>
 #include <cpputils.h>
 #include <cleanuphelper.h>
+
+#ifdef CONFIG_WIFI_LOG_WORKAROUND
+#pragma push_macro("ESP_LOGE")
+#undef ESP_LOGE
+#define ESP_LOGE(...) do {} while (0)
+#pragma push_macro("ESP_LOGW")
+#undef ESP_LOGW
+#define ESP_LOGW(...) do {} while (0)
+#pragma push_macro("ESP_LOGI")
+#undef ESP_LOGI
+#define ESP_LOGI(...) do {} while (0)
+#pragma push_macro("ESP_LOGD")
+#undef ESP_LOGD
+#define ESP_LOGD(...) do {} while (0)
+#pragma push_macro("ESP_LOGV")
+#undef ESP_LOGV
+#define ESP_LOGV(...) do {} while (0)
+#endif
 
 using namespace std::chrono_literals;
 
@@ -1346,6 +1368,10 @@ cleanup:
     wifi_clear_status_bits(WIFI_SCANNING_BIT);
 }
 
+#ifdef CONFIG_WIFI_LOG_WORKAROUND
+#pragma pop_macro("ESP_LOGI")
+#endif
+
 void wifi_event_callback(const config &config, const WifiEvent &event)
 {
     ESP_LOGD(TAG, "%d %s", int(event.event_id), toString(event.event_id).c_str());
@@ -2100,6 +2126,12 @@ esp_err_t wifi_stop()
 
     return ESP_OK;
 }
+
+#ifdef CONFIG_WIFI_LOG_WORKAROUND
+#pragma push_macro("ESP_LOGI")
+#undef ESP_LOGI
+#define ESP_LOGI(...) do {} while (0)
+#endif
 
 std::expected<void, std::string> applyBaseMac(const mac_t &mac)
 {
