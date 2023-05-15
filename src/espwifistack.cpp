@@ -27,9 +27,8 @@
 #endif
 #include <lwip/netif.h>
 #include <esp_mac.h>
-
-#ifdef CONFIG_ETH_ENABLED
 #include <driver/gpio.h>
+#ifdef CONFIG_ETH_ENABLED
 #include <esp_eth.h>
 #include <esp_eth_phy.h>
 #include <esp_eth_mac.h>
@@ -2886,14 +2885,57 @@ std::expected<void, std::string> eth_begin(const config &config, const eth_confi
 #ifdef CONFIG_PPP_SUPPORT
 esp_err_t modem_init()
 {
+    constexpr gpio_num_t powerPin = GPIO_NUM_4;
+    constexpr gpio_num_t resetPin = GPIO_NUM_17;
+    constexpr gpio_num_t txPin    = GPIO_NUM_16;
+    constexpr gpio_num_t rxPin    = GPIO_NUM_34;
+    constexpr gpio_num_t rtsPin   = GPIO_NUM_19;
+    constexpr gpio_num_t ctsPin   = GPIO_NUM_18;
+
+    {
+        const gpio_config_t config {
+            .pin_bit_mask = 1ULL << powerPin,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+
+        if (const auto result = gpio_config(&config); result != ESP_OK)
+            ESP_LOGE(TAG, "gpio_config() failed %s", esp_err_to_name(result));
+
+        if (const auto result = gpio_set_level(powerPin, true); result != ESP_OK)
+            ESP_LOGE(TAG, "gpio_set_level() failed with %s", esp_err_to_name(result));
+    }
+    {
+        const gpio_config_t config {
+            .pin_bit_mask = 1ULL << resetPin,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+
+        if (const auto result = gpio_config(&config); result != ESP_OK)
+            ESP_LOGE(TAG, "gpio_config() failed %s", esp_err_to_name(result));
+
+        if (const auto result = gpio_set_level(resetPin, true); result != ESP_OK)
+            ESP_LOGE(TAG, "gpio_set_level() failed with %s", esp_err_to_name(result));
+
+        espcpputils::delay(50ms);
+
+        if (const auto result = gpio_set_level(resetPin, false); result != ESP_OK)
+            ESP_LOGE(TAG, "gpio_set_level() failed with %s", esp_err_to_name(result));
+    }
+
     /* Configure and create the DTE */
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
     /* setup UART specific configuration based on kconfig options */
-    dte_config.uart_config.baud_rate = 9600;
-    dte_config.uart_config.tx_io_num = 17;
-    dte_config.uart_config.rx_io_num = 4;
-    //dte_config.uart_config.rts_io_num = ;
-    //dte_config.uart_config.cts_io_num = ;
+    dte_config.uart_config.baud_rate = 115200;
+    dte_config.uart_config.tx_io_num = txPin;
+    dte_config.uart_config.rx_io_num = rxPin;
+    dte_config.uart_config.rts_io_num = rtsPin;
+    dte_config.uart_config.cts_io_num = ctsPin;
     dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_NONE; //ESP_MODEM_FLOW_CONTROL_NONE, ESP_MODEM_FLOW_CONTROL_SW, ESP_MODEM_FLOW_CONTROL_HW
 
     auto dte = esp_modem::create_uart_dte(&dte_config);
@@ -2917,7 +2959,7 @@ esp_err_t modem_init()
         return ESP_FAIL;
     }
 
-    auto dce = esp_modem::create_BG96_dce(&dce_config, dte, esp_netif);
+    auto dce = esp_modem::create_SIM7600_dce(&dce_config, dte, esp_netif);
     if (!dce)
     {
         ESP_LOGE(TAG, "create_SIM800_dce() failed");
