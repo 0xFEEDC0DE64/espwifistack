@@ -2951,6 +2951,30 @@ esp_err_t modem_init()
 
         espcpputils::delay(500ms);
     }
+    {
+        const gpio_config_t config {
+            .pin_bit_mask = 1ULL << txPin,
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+
+        if (const auto result = gpio_config(&config); result != ESP_OK)
+            ESP_LOGE(TAG, "gpio_config() failed %s", esp_err_to_name(result));
+    }
+    {
+        const gpio_config_t config {
+            .pin_bit_mask = 1ULL << rxPin,
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+
+        if (const auto result = gpio_config(&config); result != ESP_OK)
+            ESP_LOGE(TAG, "gpio_config() failed %s", esp_err_to_name(result));
+    }
 
     /* Configure and create the DTE */
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -2960,7 +2984,7 @@ esp_err_t modem_init()
     dte_config.uart_config.rx_io_num = rxPin;
     dte_config.uart_config.rts_io_num = rtsPin;
     dte_config.uart_config.cts_io_num = ctsPin;
-    dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_HW; //ESP_MODEM_FLOW_CONTROL_NONE, ESP_MODEM_FLOW_CONTROL_SW, ESP_MODEM_FLOW_CONTROL_HW
+    dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_NONE; //ESP_MODEM_FLOW_CONTROL_NONE, ESP_MODEM_FLOW_CONTROL_SW, ESP_MODEM_FLOW_CONTROL_HW
 
     auto dte = esp_modem::create_uart_dte(&dte_config);
     if (!dte)
@@ -2970,7 +2994,7 @@ esp_err_t modem_init()
     }
 
     /* Configure the DCE */
-    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG("TM"); // thingsmobile
+    esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG("business.gprsinternet"); // thingsmobile
 
     /* Configure the PPP netif */
     esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
@@ -2987,6 +3011,15 @@ esp_err_t modem_init()
     if (!dce)
     {
         ESP_LOGE(TAG, "create_SIM7600_dce() failed");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "waiting for ATREADY");
+    if (const auto result = esp_modem::dce_commands::generic_command(dte.get(), "", "ATREADY", "ERROR", 30000); result == esp_modem::command_result::OK)
+        ESP_LOGI(TAG, "Successfully waited for ATREADY");
+    else
+    {
+        ESP_LOGW(TAG, "Waiting for ATREADY failed %i", std::to_underlying(result));
         return ESP_FAIL;
     }
 
@@ -3011,27 +3044,62 @@ esp_err_t modem_init()
         ESP_LOGI(TAG, "not set_flow_control, because 2-wire mode active.");
     }
 
-//    again2:
-    if (dce->set_mode(esp_modem::modem_mode::CMUX_MODE))
-    {
-        ESP_LOGI(TAG, "Modem has correctly entered multiplexed command/data mode");
-    }
-    else
-    {
-        ESP_LOGE(TAG, "Failed to configure multiplexed command mode...");
-
-//        goto again2;
-
-        //return ESP_FAIL;
-    }
-
     std::string str;
 
-    ESP_LOGI(TAG, "get_imei()...");
-    if (const auto result = dce->get_imei(str); result == esp_modem::command_result::OK)
-        ESP_LOGI(TAG, "IMEI: %s", str.c_str());
-    else
-        ESP_LOGE(TAG, "get_imei() failed with %i", std::to_underlying(result));
+//    ESP_LOGI(TAG, "get_imei()...");
+//    if (const auto result = dce->get_imei(str); result == esp_modem::command_result::OK)
+//        ESP_LOGI(TAG, "IMEI: %s", str.c_str());
+//    else
+//        ESP_LOGE(TAG, "get_imei() failed with %i", std::to_underlying(result));
+
+    const auto work_between = [&](){
+        espcpputils::delay(1000ms);
+        ESP_LOGI(TAG, "get_imei()...");
+        if (const auto result = dce->get_imei(str); result == esp_modem::command_result::OK)
+            ESP_LOGI(TAG, "IMEI: %s", str.c_str());
+        else
+            ESP_LOGE(TAG, "get_imei() failed with %i", std::to_underlying(result));
+
+#if defined(CONFIG_ESP_TASK_WDT_PANIC) || defined(CONFIG_ESP_TASK_WDT)
+        if (const auto result = esp_task_wdt_reset(); result != ESP_OK)
+            ESP_LOGE(TAG, "esp_task_wdt_reset() failed with %s", esp_err_to_name(result));
+#endif
+        espcpputils::delay(1000ms);
+    };
+
+    work_between();
+    ESP_LOGI(TAG, "test0 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+DUALSIM?",     "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test1 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+SWITCHSIM?",   "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test2 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+BINDSIM?",     "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test3 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+CSPN?",        "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test4 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+BINDSIM=1",    "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test5 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+BSPN?",        "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test6 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+DUALSIMURC?",  "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test7 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+BINDSIM?",     "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test8 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+BINDSIM?",     "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test9 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+BINDSIM=?",    "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test10 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+BINDSIM=1",   "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test11 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+BINDSIM=2",   "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test12 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+SWITCHSIM?",  "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test13 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+SWITCHSIM=?", "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test14 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+SWITCHSIM=1", "PASS", "ERROR", 50000)));
+    work_between();
+    ESP_LOGI(TAG, "test15 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+SWITCHSIM=2", "PASS", "ERROR", 50000)));
+    work_between();
 
     for (int i = 0; i < 10; i++)
     {
@@ -3045,6 +3113,26 @@ esp_err_t modem_init()
         {
             ESP_LOGE(TAG, "get_operator_name() failed with %i", std::to_underlying(result));
             espcpputils::delay(500ms);
+        }
+    }
+
+    for (auto i = 0; i < 10; i++)
+    {
+        if (dce->set_mode(esp_modem::modem_mode::CMUX_MODE))
+        {
+            ESP_LOGI(TAG, "Modem has correctly entered multiplexed command/data mode");
+
+            break;
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to configure multiplexed command mode...");
+
+            work_between();
+
+            continue;
+
+            //return ESP_FAIL;
         }
     }
 
