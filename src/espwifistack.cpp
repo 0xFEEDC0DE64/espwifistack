@@ -2897,6 +2897,7 @@ esp_err_t modem_init()
     constexpr gpio_num_t rxPin    = GPIO_NUM_34;
     constexpr gpio_num_t rtsPin   = GPIO_NUM_19;
     constexpr gpio_num_t ctsPin   = GPIO_NUM_18;
+    const auto baudRate = 115200;
 
     {
         const gpio_config_t config {
@@ -2976,10 +2977,96 @@ esp_err_t modem_init()
             ESP_LOGE(TAG, "gpio_config() failed %s", esp_err_to_name(result));
     }
 
+    constexpr uart_port_t host_uart_num = UART_NUM_0;
+    constexpr uart_port_t uart_num = UART_NUM_1;
+
+    {
+        const uart_config_t uart_config = {
+            .baud_rate = baudRate,
+            .data_bits = UART_DATA_8_BITS,
+            .parity = UART_PARITY_DISABLE,
+            .stop_bits = UART_STOP_BITS_1,
+            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            .rx_flow_ctrl_thresh = 122,
+            .source_clk = UART_SCLK_APB,
+//            .source_clk = UART_SCLK_REF_TICK,
+        };
+        if (const auto result = uart_param_config(uart_num, &uart_config); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "uart_param_config() failed with %s", esp_err_to_name(result));
+            return result;
+        }
+    }
+
+    if (const auto result = uart_set_pin(uart_num, txPin, rxPin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE); result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "uart_set_pin() failed with %s", esp_err_to_name(result));
+        return result;
+    }
+
+    const int uart_buffer_size = 1024 * 2;
+    if (const auto result = uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, nullptr, 0); result != ESP_OK)
+    {
+        ESP_LOGE(TAG, "uart_driver_install() failed with %s", esp_err_to_name(result));
+        return result;
+    }
+
+    ESP_LOGI(TAG, "you now have the power to talk to the modem:");
+
+    while (true)
+    {
+#if defined(CONFIG_ESP_TASK_WDT_PANIC) || defined(CONFIG_ESP_TASK_WDT)
+        if (const auto result = esp_task_wdt_reset(); result != ESP_OK)
+            ESP_LOGE(TAG, "esp_task_wdt_reset() failed with %s", esp_err_to_name(result));
+#endif
+
+        size_t length{};
+        if (const auto result = uart_get_buffered_data_len(host_uart_num, &length); result != ESP_OK)
+        {
+            ESP_LOGW(TAG, "uart_get_buffered_data_len() failed with %s", esp_err_to_name(result));
+        }
+        else if (length)
+        {
+            char data[length];
+            length = uart_read_bytes(host_uart_num, data, length, 0);
+
+            if (const auto written = uart_write_bytes(uart_num, data, length); written < 0)
+                ESP_LOGE(TAG, "uart_write_bytes() failed with %i", written);
+            else if (written != length)
+                ESP_LOGW(TAG, "uart_write_bytes() did not write all bytes %i vs %i", written, length);
+        }
+
+        if (const auto result = uart_get_buffered_data_len(uart_num, &length); result != ESP_OK)
+        {
+            ESP_LOGE(TAG, "uart_get_buffered_data_len() failed with %s", esp_err_to_name(result));
+            vTaskDelay(0);
+            continue;
+        }
+
+        if (!length)
+        {
+            vTaskDelay(0);
+            continue;
+        }
+
+        char data[length];
+        length = uart_read_bytes(uart_num, data, length, 0);
+
+        if (!length)
+        {
+            vTaskDelay(0);
+            continue;
+        }
+
+        printf("%.*s", length, data);
+    }
+
+    return ESP_OK;
+
     /* Configure and create the DTE */
     esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
     /* setup UART specific configuration based on kconfig options */
-    dte_config.uart_config.baud_rate = 115200;
+    dte_config.uart_config.baud_rate = baudRate;
     dte_config.uart_config.tx_io_num = txPin;
     dte_config.uart_config.rx_io_num = rxPin;
     dte_config.uart_config.rts_io_num = rtsPin;
@@ -3068,6 +3155,7 @@ esp_err_t modem_init()
     };
 
     work_between();
+
     ESP_LOGI(TAG, "test0 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+DUALSIM?",     "PASS", "ERROR", 50000)));
     work_between();
     ESP_LOGI(TAG, "test1 %i", std::to_underlying(esp_modem::dce_commands::generic_command(dte.get(), "AT+SWITCHSIM?",   "PASS", "ERROR", 50000)));
