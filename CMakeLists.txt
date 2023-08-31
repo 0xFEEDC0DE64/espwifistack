@@ -19,7 +19,6 @@ set(dependencies
     esp_wifi
     driver
     esp_eth
-    esp_modem
 
     cxx-ring-buffer
     cpputils
