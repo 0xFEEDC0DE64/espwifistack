@@ -2214,13 +2214,25 @@ esp_err_t wifi_sync_mode(const config &config)
 
     if (newMode)
     {
-        if (config.sta && config.sta->long_range)
-            if (const auto result = esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR); result != ESP_OK)
-                ESP_LOGE(TAG, "esp_wifi_set_protocol() for STA long range failed with %s", esp_err_to_name(result));
+        if (config.sta)
+        {
+            if (config.sta->long_range)
+                if (const auto result = esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR); result != ESP_OK)
+                    ESP_LOGE(TAG, "esp_wifi_set_protocol() for STA long range failed with %s", esp_err_to_name(result));
 
-        if (config.ap && config.ap->long_range)
-            if (const auto result = esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_LR); result != ESP_OK)
-                ESP_LOGE(TAG, "esp_wifi_set_protocol() for AP long range failed with %s", esp_err_to_name(result));
+            if (const auto result = esp_wifi_set_bandwidth(WIFI_IF_STA, config.sta->bandwidth); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_wifi_set_bandwidth() for STA failed with %s", esp_err_to_name(result));
+        }
+
+        if (config.ap)
+        {
+            if (config.ap->long_range)
+                if (const auto result = esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_LR); result != ESP_OK)
+                    ESP_LOGE(TAG, "esp_wifi_set_protocol() for AP long range failed with %s", esp_err_to_name(result));
+
+            if (const auto result = esp_wifi_set_bandwidth(WIFI_IF_AP, config.ap->bandwidth); result != ESP_OK)
+                ESP_LOGE(TAG, "esp_wifi_set_bandwidth() for AP failed with %s", esp_err_to_name(result));
+        }
 
         if (config.country)
             if (const auto result = esp_wifi_set_country(&*config.country); result != ESP_OK)

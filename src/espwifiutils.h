@@ -20,6 +20,7 @@ bool wifi_sta_config_equal(const wifi_sta_config_t& lhs, const wifi_sta_config_t
 
 std::string toString(wifi_auth_mode_t authMode);
 std::string toString(wifi_cipher_type_t cipherType);
+std::string toString(wifi_bandwidth_t bandwidth);
 std::string toString(esp_interface_t interface);
 std::string toString(esp_netif_dhcp_status_t status);
 const char * toString(wifi_err_reason_t reason);

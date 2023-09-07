@@ -166,6 +166,7 @@ struct sta_config
     std::array<wifi_entry, 10> wifis;
     int8_t min_rssi = -90;
     bool long_range = false;
+    wifi_bandwidth_t bandwidth = WIFI_BW_HT20;
     sta_scan_config scan;
 
     friend bool operator==(const sta_config &left, const sta_config &right)
@@ -174,6 +175,7 @@ struct sta_config
                left.wifis == right.wifis &&
                left.min_rssi == right.min_rssi &&
                left.long_range == right.long_range &&
+               left.bandwidth == right.bandwidth &&
                left.scan == right.scan;
     }
 
@@ -195,6 +197,7 @@ struct ap_config
     int max_connection = 4;
     uint16_t beacon_interval = 100;
     bool long_range = false;
+    wifi_bandwidth_t bandwidth = WIFI_BW_HT20;
 
     friend bool operator==(const ap_config &left, const ap_config &right)
     {
@@ -207,7 +210,8 @@ struct ap_config
                left.ssid_hidden == right.ssid_hidden &&
                left.max_connection == right.max_connection &&
                left.beacon_interval == right.beacon_interval &&
-               left.long_range == right.long_range;
+               left.long_range == right.long_range &&
+               left.bandwidth == right.bandwidth;
     }
 
     friend bool operator!=(const ap_config &left, const ap_config &right)

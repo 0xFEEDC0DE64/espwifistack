@@ -121,9 +121,8 @@ std::expected<void, std::string> UdpSender::send(ip_addr_t ip, uint16_t port, st
         recipient.sin6_port = htons(port);
         return send(recipient, buf);
     }
-    default:
-        return std::unexpected(fmt::format("unsupported ip type {}", ip.type));
     }
+    return std::unexpected(fmt::format("unsupported ip type {}", ip.type));
 }
 
 std::expected<void, std::string> UdpSender::send(esp_ip_addr_t ip, uint16_t port, std::string_view buf)
@@ -150,9 +149,8 @@ std::expected<void, std::string> UdpSender::send(esp_ip_addr_t ip, uint16_t port
         recipient.sin6_port = htons(port);
         return send(recipient, buf);
     }
-    default:
-        return std::unexpected(fmt::format("unsupported ip type {}", ip.type));
     }
+    return std::unexpected(fmt::format("unsupported ip type {}", ip.type));
 }
 
 } // namespace wifi_stack

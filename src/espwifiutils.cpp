@@ -66,11 +66,11 @@ std::string toString(wifi_auth_mode_t authMode)
     case WIFI_AUTH_WPA3_PSK:        return "WPA3_PSK";
     case WIFI_AUTH_WPA2_WPA3_PSK:   return "WPA2_WPA3_PSK";
     case WIFI_AUTH_WAPI_PSK:        return "WAPI_PSK";
+    case WIFI_AUTH_OWE:             return "OWE";
     case WIFI_AUTH_MAX:             return "MAX";
-    default:
-        ESP_LOGW(TAG, "Unknown wifi_auth_mode_t(%i)", std::to_underlying(authMode));
-        return fmt::format("Unknown wifi_auth_mode_t({})", std::to_underlying(authMode));
     }
+    ESP_LOGW(TAG, "Unknown wifi_auth_mode_t(%i)", std::to_underlying(authMode));
+    return fmt::format("Unknown wifi_auth_mode_t({})", std::to_underlying(authMode));
 }
 
 std::string toString(wifi_cipher_type_t cipherType)
@@ -85,11 +85,25 @@ std::string toString(wifi_cipher_type_t cipherType)
     case WIFI_CIPHER_TYPE_TKIP_CCMP:   return "TKIP_CCMP";
     case WIFI_CIPHER_TYPE_AES_CMAC128: return "AES_CMAC128";
     case WIFI_CIPHER_TYPE_SMS4:        return "SMS4";
+    case WIFI_CIPHER_TYPE_GCMP:        return "GCMP";
+    case WIFI_CIPHER_TYPE_GCMP256:     return "GCMP256";
+    case WIFI_CIPHER_TYPE_AES_GMAC128: return "AES_GMAC128";
+    case WIFI_CIPHER_TYPE_AES_GMAC256: return "AES_GMAC256";
     case WIFI_CIPHER_TYPE_UNKNOWN:     return "UNKNOWN";
-    default:
-        ESP_LOGW(TAG, "Unknown wifi_cipher_type_t(%i)", std::to_underlying(cipherType));
-        return fmt::format("Unknown wifi_cipher_type_t({})", std::to_underlying(cipherType));
     }
+    ESP_LOGW(TAG, "Unknown wifi_cipher_type_t(%i)", std::to_underlying(cipherType));
+    return fmt::format("Unknown wifi_cipher_type_t({})", std::to_underlying(cipherType));
+}
+
+std::string toString(wifi_bandwidth_t bandwidth)
+{
+    switch (bandwidth)
+    {
+    case WIFI_BW_HT20: return "HT20";
+    case WIFI_BW_HT40: return "HT40";
+    }
+    ESP_LOGW(TAG, "Unknown wifi_bandwidth_t(%i)", std::to_underlying(bandwidth));
+    return fmt::format("Unknown wifi_bandwidth_t({})", std::to_underlying(bandwidth));
 }
 
 std::string toString(esp_interface_t interface)
@@ -98,24 +112,25 @@ std::string toString(esp_interface_t interface)
     {
     case ESP_IF_WIFI_STA: return "STA";
     case ESP_IF_WIFI_AP:  return "AP";
+    case ESP_IF_WIFI_NAN: return "NAN";
     case ESP_IF_ETH:      return "ETH";
-    default:
-        ESP_LOGW(TAG, "Unknown esp_interface_t(%i)", std::to_underlying(interface));
-        return fmt::format("Unknown esp_interface_t({})", std::to_underlying(interface));
+    case ESP_IF_MAX:      return "MAX";
     }
+    ESP_LOGW(TAG, "Unknown esp_interface_t(%i)", std::to_underlying(interface));
+    return fmt::format("Unknown esp_interface_t({})", std::to_underlying(interface));
 }
 
 std::string toString(esp_netif_dhcp_status_t status)
 {
     switch (status)
     {
-    case ESP_NETIF_DHCP_INIT:    return "INIT";
-    case ESP_NETIF_DHCP_STARTED: return "STARTED";
-    case ESP_NETIF_DHCP_STOPPED: return "STOPPED";
-    default:
-        ESP_LOGW(TAG, "Unknown esp_netif_dhcp_status_t(%i)", std::to_underlying(status));
-        return fmt::format("Unknown esp_netif_dhcp_status_t({})", std::to_underlying(status));
+    case ESP_NETIF_DHCP_INIT:       return "INIT";
+    case ESP_NETIF_DHCP_STARTED:    return "STARTED";
+    case ESP_NETIF_DHCP_STOPPED:    return "STOPPED";
+    case ESP_NETIF_DHCP_STATUS_MAX: return "STATUS_MAX";
     }
+    ESP_LOGW(TAG, "Unknown esp_netif_dhcp_status_t(%i)", std::to_underlying(status));
+    return fmt::format("Unknown esp_netif_dhcp_status_t({})", std::to_underlying(status));
 }
 
 const char * toString(wifi_err_reason_t reason)
@@ -297,10 +312,9 @@ std::string toString(ip_addr_t val)
     {
     case IPADDR_TYPE_V4: return toString(val.u_addr.ip4);
     case IPADDR_TYPE_V6: return toString(val.u_addr.ip6);
-    default:
-        //ESP_LOGW(TAG, "Unknown ipv%hhu", val.type);
-        return fmt::format("Unknown ipv{}", val.type);
     }
+    //ESP_LOGW(TAG, "Unknown ipv%hhu", val.type);
+    return fmt::format("Unknown ipv{}", val.type);
 }
 
 std::string toString(const esp_ip_addr_t &val)
@@ -309,10 +323,9 @@ std::string toString(const esp_ip_addr_t &val)
     {
     case IPADDR_TYPE_V4: return toString(val.u_addr.ip4);
     case IPADDR_TYPE_V6: return toString(val.u_addr.ip6);
-    default:
-        ESP_LOGW(TAG, "Unknown ipv%hhu", val.type);
-        return fmt::format("Unknown ipv{}", val.type);
     }
+    ESP_LOGW(TAG, "Unknown ipv%hhu", val.type);
+    return fmt::format("Unknown ipv{}", val.type);
 }
 
 } // namespace wifi_stack
