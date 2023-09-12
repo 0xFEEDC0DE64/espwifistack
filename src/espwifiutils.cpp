@@ -200,6 +200,24 @@ const char * toString(wifi_err_reason_t reason)
     return "UNKNOWN";
 }
 
+#ifdef CONFIG_PPP_SUPPORT
+std::string toString(esp_netif_auth_type_t authType)
+{
+    switch (authType)
+    {
+    case NETIF_PPP_AUTHTYPE_NONE:      return "NONE";
+    case NETIF_PPP_AUTHTYPE_PAP:       return "PAP";
+    case NETIF_PPP_AUTHTYPE_CHAP:      return "CHAP";
+    case NETIF_PPP_AUTHTYPE_MSCHAP:    return "MSCHAP";
+    case NETIF_PPP_AUTHTYPE_MSCHAP_V2: return "MSCHAP_V2";
+    case NETIF_PPP_AUTHTYPE_EAP:       return "EAP";
+    }
+
+    ESP_LOGW(TAG, "Unknown esp_netif_auth_type_t(%i)", std::to_underlying(authType));
+    return fmt::format("Unknown esp_netif_auth_type_t({})", std::to_underlying(authType));
+}
+#endif
+
 template<> std::expected<mac_t, std::string> fromString<mac_t>(std::string_view str)
 {
     mac_t result{};

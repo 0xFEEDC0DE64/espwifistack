@@ -13,6 +13,9 @@
 #include <esp_netif_ip_addr.h>
 #include <esp_netif_types.h>
 #include <lwip/ip_addr.h>
+#ifdef CONFIG_PPP_SUPPORT
+#include <esp_netif_ppp.h>
+#endif
 
 namespace wifi_stack {
 bool wifi_ap_config_equal(const wifi_ap_config_t& lhs, const wifi_ap_config_t& rhs);
@@ -24,6 +27,9 @@ std::string toString(wifi_bandwidth_t bandwidth);
 std::string toString(esp_interface_t interface);
 std::string toString(esp_netif_dhcp_status_t status);
 const char * toString(wifi_err_reason_t reason);
+#ifdef CONFIG_PPP_SUPPORT
+std::string toString(esp_netif_auth_type_t);
+#endif
 
 template<typename T> std::expected<T, std::string> fromString(std::string_view str) = delete;
 
