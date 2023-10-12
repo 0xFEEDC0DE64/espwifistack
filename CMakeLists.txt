@@ -1,14 +1,10 @@
 set(headers
     src/espwifistack.h
-    src/espwifistackconfig.h
-    src/espwifistackenums.h
-    src/espwifiutils.h
     src/udpsender.h
 )
 
 set(sources
     src/espwifistack.cpp
-    src/espwifiutils.cpp
     src/udpsender.cpp
 )
 
@@ -24,6 +20,7 @@ set(dependencies
     cpputils
     espchrono
     espcpputils
+    espwifiutils
     fmt
 )
 
