@@ -163,7 +163,7 @@ struct dual_ant_config
 struct sta_config
 {
     std::string hostname;
-    std::array<wifi_entry, 10> wifis;
+    std::array<wifi_entry, CONFIG_WIFI_STA_CONFIG_COUNT> wifis;
     int8_t min_rssi = -90;
     bool long_range = false;
     wifi_bandwidth_t bandwidth = WIFI_BW_HT20;
