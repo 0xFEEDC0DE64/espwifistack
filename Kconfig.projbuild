@@ -44,4 +44,9 @@ config WIFI_LOG_WORKAROUND
     bool "Enable disabled-log bug workaround (by enabling certain log statements)"
     default false
 
+config WIFI_STA_CONFIG_COUNT
+    int "Maximum number of STA configurations"
+    default 5
+    range 1 10
+
 endmenu

@@ -68,6 +68,7 @@ std::string toString(wifi_auth_mode_t authMode)
     case WIFI_AUTH_WAPI_PSK:        return "WAPI_PSK";
     case WIFI_AUTH_OWE:             return "OWE";
     case WIFI_AUTH_MAX:             return "MAX";
+    case WIFI_AUTH_WPA3_ENT_192:    return "WPA3_ENT_192";
     }
     ESP_LOGW(TAG, "Unknown wifi_auth_mode_t(%i)", std::to_underlying(authMode));
     return fmt::format("Unknown wifi_auth_mode_t({})", std::to_underlying(authMode));
